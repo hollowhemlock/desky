@@ -39,7 +39,7 @@ refinements and unresolved product decisions without copying the entire source
 brief into another document. Keep execution plans distinct from durable
 requirements and decisions.
 
-## Autonomy pilot v0.1
+## Autonomy pilot v0.2
 
 The policy below is the project-local snapshot adopted for this trial. Record
 deliberate policy revisions in the pilot evidence; do not change the experiment's
@@ -110,7 +110,7 @@ Keep improvements connected to the affected area. Report broader opportunities
 without implementing them. Keep project learning local; changes to global agent
 policy or permissions require a separate request.
 
-## Verify and persist
+## Verify, review, and repair
 
 Check the requested behavior and run focused checks followed by required project
 verification. Reuse an idiomatic verification path; do not require a particular
@@ -121,6 +121,28 @@ Repair failures introduced by the change. Distinguish pre-existing failures and
 unavailable checks; do not weaken meaningful tests, conceal failures, or expand
 into unrelated repairs. Passing automation is evidence for the behavior it
 actually exercises. Use an appropriate smoke or interaction check for gaps.
+
+Before declaring implementation complete, review the full task change, including
+committed portions, affected integration paths, and documentation, against the
+acceptance criteria. Examine relevant failure paths beyond those exercised by
+existing checks. For persistence changes, consider partial failure, retry, and
+restart; keep concrete recovery invariants and regression tests in the project.
+
+Use a fresh reviewer for substantial behavior changes when available and
+delegation is permitted; otherwise perform a focused self-review. The implementing
+agent retains responsibility for assessing findings, fixing confirmed in-scope
+defects, and verifying repairs without asking the human to relay findings or
+request routine fixes. Include ordinary correctness defects even when checks pass;
+cosmetic preferences and speculative improvements are not completion blockers.
+Repairs may include affected call sites or dependencies outside the original diff
+when necessary for the task, without taking on unrelated cleanup.
+
+After a focused review, verify repairs and inspect their affected paths again.
+Repeat broader review only when new changes or evidence justify it. Stop when
+acceptance and required checks are satisfied and no confirmed in-scope defects
+remain; do not seek repeated clean reviews. Unavailable review tools do not create
+a routine approval checkpoint. Report unverified behavior and unresolved defects
+as limitations rather than claiming that review guarantees correctness.
 
 Continue while making progress. If repeated attempts yield no new evidence, or
 access or a consequential decision blocks progress, explain the concrete blocker

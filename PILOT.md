@@ -6,8 +6,9 @@ and Windows entry, personal URL persistence and selection (increments 1-3) are
 implemented. Browser integration remains planned. Evidence appears below.
 
 Baseline: `97f7edb443fde605932fc08378e6021b403d50cd` contains the original README,
-product brief, and terminal namespace design. The policy is the v0.1 snapshot in
-[AGENTS.md](AGENTS.md). This trial uses the existing Codex tools and permissions;
+product brief, and terminal namespace design. The current policy is the v0.2
+snapshot in [AGENTS.md](AGENTS.md); the specification and increments 1-3 used v0.1.
+This trial uses the existing Codex tools and permissions;
 no global policy, custom agent roles, or additional skill installation is needed.
 
 ## First task: architecture and specification
@@ -294,6 +295,19 @@ needed before treating this pilot as evidence for global adoption.
   matching its random temporary ancestors under subsequence search; the filter
   assertion now uses the full target path and a distinct no-match query. Final
   remote results are reported in task output.
+
+### 2026-10-02: adopt policy v0.2
+
+- Adopted the generic v0.2 policy from autonomy-kit commit dbf831a, preserving
+  Desky's project-specific reading and maintenance guidance. Start: 1745751.
+  This entry's commit records adoption; prior evidence remains attributed to v0.1.
+- Implementation now includes focused completion review, ownership of in-scope
+  repairs, and verification of fixes. Review depth follows the change's risk;
+  standalone review requests remain read-only.
+- Scope is policy adoption only. The known first-URL-save recovery defect remains
+  unfixed; no application code, product contracts, or global configuration changed.
+  Document checks and policy comparison validate this adoption. No application
+  tests or implementation trial of v0.2 are claimed.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
