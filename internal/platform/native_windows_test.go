@@ -125,6 +125,15 @@ func TestNativePreflightAndLookup(t *testing.T) {
 	if err == nil {
 		t.Fatal("resolved checkout executable")
 	}
+	t.Run("checkout alias", func(t *testing.T) {
+		alias := filepath.Join(t.TempDir(), "alias")
+		if err := os.Symlink(root, alias); err != nil {
+			t.Skipf("symlink unavailable: %v", err)
+		}
+		if _, _, err := (Native{}).Resolve("terminal", workspace.Profile{}, alias); err == nil {
+			t.Fatal("resolved executable through checkout alias")
+		}
+	})
 	installed := t.TempDir()
 	t.Setenv("PATH", installed)
 	if err = os.WriteFile(filepath.Join(installed, "wt.exe"), []byte("fixture"), 0600); err != nil {

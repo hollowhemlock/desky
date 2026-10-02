@@ -18,6 +18,13 @@ func (Native) Resolve(kind string, p workspace.Profile, root string) (workspace.
 	if strings.HasPrefix(root, `\\`) {
 		return p, false, workspace.Failure(7, "unsupported_action", "network checkout launching is not supported")
 	}
+	// Resolve aliases on both sides of lookup containment checks. In particular,
+	// Windows temp directories may be supplied through an 8.3 or junction alias.
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return p, false, workspace.Failure(7, "unsupported_action", "checkout directory is unavailable")
+	}
+	root = canonicalRoot
 	if kind == "url" {
 		return p, false, nil
 	}

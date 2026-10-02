@@ -231,6 +231,11 @@ needed before treating this pilot as evidence for global adoption.
   approval was needed. Tool permission prompts are separate from product approval.
   Computer-use skill was used for window discovery. Human effort/cost beyond that
   observation was not independently measured. No generic pilot policy revisions.
+- Remote verification found an additional Windows path-alias lookup case: a PATH
+  entry was canonicalized but the supplied checkout root was not. The adapter now
+  canonicalizes both before excluding checkout executables, with a symlink-alias
+  regression test. Linux/macOS gates and Linux race passed on the first run;
+  the corrected Windows result is reported in the task output.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
