@@ -85,7 +85,9 @@ func TestPickerQueriesNumbersAndNoninteractive(t *testing.T) {
 	if err := w.VisitEntry(i, func(workspace.Info) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ input, want string }{{"\n", second}, {"2\n", root}, {"project\n\n", root}, {"absent\n/\n1\n", second}, {"999\n1\n", second}} {
+	// Full-path filtering cannot accidentally match random temporary ancestors
+	// under the picker's intentional subsequence search.
+	for _, tc := range []struct{ input, want string }{{"\n", second}, {"2\n", root}, {root + "\n\n", root}, {"⚑no-matches\n/\n1\n", second}, {"999\n1\n", second}} {
 		var out bytes.Buffer
 		got, err := pick(w, bufio.NewReader(strings.NewReader(tc.input)), &out, true, nil)
 		if err != nil || got != tc.want {

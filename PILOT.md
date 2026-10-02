@@ -290,7 +290,10 @@ needed before treating this pilot as evidence for global adoption.
 - Initial remote CI passed Linux verification and the race check. Windows/macOS
   exposed a picker test comparing canonical selected paths with temporary-directory
   aliases. The fixture now uses the registered canonical paths, preserving the
-  exact selection assertion. Final remote results are reported in task output.
+  exact selection assertion. A further macOS run exposed a short filter query
+  matching its random temporary ancestors under subsequence search; the filter
+  assertion now uses the full target path and a distinct no-match query. Final
+  remote results are reported in task output.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
