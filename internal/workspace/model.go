@@ -66,13 +66,14 @@ type Definition struct {
 }
 type Info struct {
 	Checkout
-	Registered      bool       `json:"registered"`
-	Available       bool       `json:"available"`
-	ConfigPath      string     `json:"config_path"`
-	PersonalDataDir string     `json:"personal_data_dir"`
-	DeviceStateDir  string     `json:"device_state_dir"`
-	Resources       []Resource `json:"resources"`
-	Trust           string     `json:"trust"`
+	PreviousWorkspaceID string     `json:"previous_workspace_id,omitempty"`
+	Registered          bool       `json:"registered"`
+	Available           bool       `json:"available"`
+	ConfigPath          string     `json:"config_path"`
+	PersonalDataDir     string     `json:"personal_data_dir"`
+	DeviceStateDir      string     `json:"device_state_dir"`
+	Resources           []Resource `json:"resources"`
+	Trust               string     `json:"trust"`
 }
 type ListedCheckout struct {
 	Checkout

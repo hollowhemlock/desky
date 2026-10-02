@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: increment 1 is implemented; increments 2-4 remain **unimplemented**.
+Status: increments 1-2 are implemented; increments 3-4 remain **unimplemented**.
 [SPEC.md](SPEC.md) is authoritative for behavior and technical decisions.
 Do not scaffold the entire plan at once. Each increment should leave a usable,
 verified slice and update README navigation to its actual code and checks.
@@ -64,6 +64,15 @@ integration tests, trust mutation tests and a native manual smoke check. The smo
 record names OS, app versions and observed outcomes. A helper launch is not proof
 that a GUI app focused correctly. Once this passes, explicit directory entry is
 the first usable launcher increment; other platforms remain unverified.
+
+Completed on Windows/amd64. The local verification runner passes; launch tests
+cover dry-run/cancellation, digest changes, checkout-specific approval, changed
+identity, preflight rejection, partial dispatch, recency write failures and
+concurrent entries. Native subprocess tests exercise Windows argument quoting,
+child CWD, disconnected handles and survival after parent exit. The desktop smoke
+and its user-observed result are recorded in PILOT.md. Native adapters on other
+platforms explicitly fail with exit 7. Existing personal workspace resources
+block entry until increment 3 can interpret them.
 
 ## 3. Select recent projects and retain personal URLs
 
@@ -174,6 +183,6 @@ acceptance and explicit native verification gates. No unanswered material produc
 choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
-**Next action:** implement increment 2 on a task branch containing the verified
-metadata implementation. Preserve the identity and persistence contracts and add
-launch planning, trust and current-host dispatch behind the specified boundary.
+**Next action:** implement increment 3 on a task branch containing the verified
+Windows launcher. Preserve checkout identity and launch consent while adding the
+MRU picker and personal URL revisions, conflicts and pin merging.

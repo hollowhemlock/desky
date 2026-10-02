@@ -64,6 +64,10 @@ func discover(path string) (root, config string, err error) {
 }
 
 func (s *Service) inspectPath(path string, r registry, device DeviceConfig) (Info, error) {
+	return s.inspectPathMode(path, r, device, false)
+}
+
+func (s *Service) inspectPathMode(path string, r registry, device DeviceConfig, acceptChange bool) (Info, error) {
 	root, config, err := discover(path)
 	if err != nil {
 		return Info{}, err
@@ -71,7 +75,7 @@ func (s *Service) inspectPath(path string, r registry, device DeviceConfig) (Inf
 	if err := checkScopes(s.Locations, device.PersonalDataDir, root); err != nil {
 		return Info{}, err
 	}
-	info := Info{Checkout: Checkout{RootPath: root, Name: filepath.Base(root), IdentitySource: "directory"}, ConfigPath: config, PersonalDataDir: device.PersonalDataDir, DeviceStateDir: s.Locations.StateDir, Available: true, Trust: "not_implemented"}
+	info := Info{Checkout: Checkout{RootPath: root, Name: filepath.Base(root), IdentitySource: "directory"}, ConfigPath: config, PersonalDataDir: device.PersonalDataDir, DeviceStateDir: s.Locations.StateDir, Available: true, Trust: "not_evaluated"}
 	p := "."
 	info.Resources = []Resource{{ID: "editor", Type: "editor", Path: &p, Origin: "default"}}
 	if config != "" {
@@ -91,7 +95,13 @@ func (s *Service) inspectPath(path string, r registry, device DeviceConfig) (Inf
 	if i := checkoutIndex(r, root); i >= 0 {
 		old := r.Checkouts[i]
 		if (info.WorkspaceID != "" && info.WorkspaceID != old.WorkspaceID) || (old.IdentitySource == "explicit" && info.IdentitySource != "explicit") {
-			e := Failure(5, "identity_changed", "workspace identity changed; restore the original configuration before continuing (rebinding requires the later open increment)")
+			if acceptChange && info.WorkspaceID != "" {
+				info.PreviousWorkspaceID = old.WorkspaceID
+				info.CheckoutID = old.CheckoutID
+				info.Registered = true
+				return info, nil
+			}
+			e := Failure(5, "identity_changed", "workspace identity changed; inspect an explicit path with --accept-identity-change or restore the original configuration")
 			e.Details = map[string]string{"old_id": old.WorkspaceID, "new_id": info.WorkspaceID}
 			return Info{}, e
 		}
@@ -209,6 +219,19 @@ func (s *Service) List() ([]ListedCheckout, error) {
 		items = append(items, ListedCheckout{c, err == nil && st.IsDir()})
 	}
 	sort.Slice(items, func(i, j int) bool {
+		a, b := items[i], items[j]
+		if a.LastEnteredAt == nil && b.LastEnteredAt != nil {
+			return false
+		}
+		if a.LastEnteredAt != nil && b.LastEnteredAt == nil {
+			return true
+		}
+		if a.LastEnteredAt != nil && !a.LastEnteredAt.Equal(*b.LastEnteredAt) {
+			return a.LastEnteredAt.After(*b.LastEnteredAt)
+		}
+		if a.EntryCount != b.EntryCount {
+			return a.EntryCount > b.EntryCount
+		}
 		if items[i].Name != items[j].Name {
 			return items[i].Name < items[j].Name
 		}

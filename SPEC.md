@@ -1,7 +1,8 @@
 # Desky first-release specification
 
-Status: selected first-release contracts; workspace metadata (increment 1) is
-implemented, while launching, personal URL persistence and selection UI are not.
+Status: selected first-release contracts; workspace metadata and Windows entry
+(increments 1-2) are implemented. Personal URL persistence, selection UI and
+native launch adapters for other platforms remain planned.
 [README.md](README.md) describes the working surface. [plan.md](plan.md) owns product boundaries;
 [namespace.md](namespace.md) supplies CLI intent and provisional examples. This
 document owns the concrete first-release contract. [IMPLEMENTATION.md](IMPLEMENTATION.md)
@@ -153,7 +154,8 @@ entry; inspection and saving still work.
 Read-only inspection of an unregistered directory uses a transient identity,
 clearly marked `registered: false`, with empty checkout/directory workspace IDs,
 and never persists a generated UUID. An explicit config ID remains visible.
-Initialization or saving allocates the stable directory identity under the registry lock.
+Initialization, saving or dispatched entry allocates the stable directory identity
+under the registry lock. Failed dispatch of every resource does not register it.
 
 Device configuration `config.toml`:
 
@@ -279,6 +281,11 @@ there is no two-filesystem atomic transaction claim. Read-only commands never
 recover or write pending state. See README for manual recovery procedures.
 Trust records live separately in device `trust.json`: schema version and records
 of checkout ID, approved launch-plan digest, and approval time. They do not sync.
+Version 1 uses `records: [{checkout_id, digest, approved_at}]`, with a lowercase
+UUID v4 checkout ID, hexadecimal SHA-256 digest, and UTC RFC3339 approval time.
+Approval is persisted before dispatch; registration and recency follow successful
+dispatch. If all launches fail before a new checkout is registered, its unused
+approval record cannot approve a later newly allocated checkout ID.
 
 For mutable device files, take an OS-released advisory lock, reread under lock,
 write a same-directory temporary file, flush, then atomically replace using the
@@ -420,7 +427,7 @@ for editor/terminal, checkout root for app, and neutral home for URL helpers.
 |---|---|---|---|
 | URL | `/usr/bin/open` with one validated URL | `ShellExecuteW` open verb | `xdg-open` with one validated URL |
 | Editor default | `code --reuse-window <path>` if installed | Native Code executable if available; do not execute `code.cmd` | `code --reuse-window <path>` if installed |
-| Terminal default | `/usr/bin/open -a Terminal <directory>` | `wt.exe new-tab -d <directory>` if installed | Explicit terminal profile required; terminal flags vary |
+| Terminal default | `/usr/bin/open -a Terminal <directory>` | `wt.exe new-tab -d .` with child CWD set to the directory | Explicit terminal profile required; terminal flags vary |
 | App | Explicit native executable profile | Explicit native executable profile | Explicit native executable profile |
 
 If the default editor or terminal is absent, explain how to configure a profile;
@@ -432,6 +439,10 @@ Windows URL launching uses the documented
 [ShellExecuteW](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew)
 boundary; terminal directory arguments follow
 [Windows Terminal documentation](https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments).
+The Windows default passes `.` because Terminal treats semicolons in arguments as
+command separators. The full checkout path travels only through the native child
+working directory. Explicit user profiles remain application-specific executable
+policy and may require their own handling of application-level argument syntax.
 Linux delegates URL preference to
 [xdg-open](https://wiki.freedesktop.org/www/Software/xdg-utils/).
 

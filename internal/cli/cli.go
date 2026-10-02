@@ -1,7 +1,8 @@
-// Package cli owns argument parsing and human/JSON presentation. It never launches apps.
+// Package cli owns argument parsing, consent prompts and human/JSON presentation.
 package cli
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,12 +12,16 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/hollowhemlock/desky/internal/launch"
 	"github.com/hollowhemlock/desky/internal/workspace"
 )
 
-const help = `Desky workspace metadata (increment 1)
+const help = `Desky Windows workspace launcher
 
 Usage:
+  desk <selector> [--dry-run] [--trust <digest>] [--json]
+  desk open <selector> [--accept-identity-change] [--dry-run] [--trust <digest>] [--json]
+  desk open --workspace <uuid> [--checkout <path>] [--dry-run] [--trust <digest>] [--json]
   desk init [--name <name>] [--json]
   desk info [<selector>] [--json]
   desk list [--json]
@@ -27,7 +32,7 @@ Usage:
 
 Selectors: directory, exact workspace UUID or exact name. Use -- before a
 selector beginning with '-'. Ambiguous/fuzzy selections fail explicitly.
-Opening applications, URL commands and the interactive picker are not implemented.
+Windows entry opens the shared recipe. URL saving and the recent picker are not implemented.
 `
 
 type envelope struct {
@@ -37,6 +42,7 @@ type envelope struct {
 	Error         *workspace.Error `json:"error,omitempty"`
 }
 type options struct {
+	entry               launch.Request
 	json, help, version bool
 	name                *string
 	words               []string
@@ -66,11 +72,15 @@ func parse(args []string) (options, error) {
 		}
 		seen[key] = true
 		switch key {
-		case "--json", "--help", "--version":
+		case "--json", "--help", "--version", "--dry-run", "--accept-identity-change":
 			if eq {
 				return p, workspace.Failure(2, "usage", key+" does not take a value")
 			}
 			switch key {
+			case "--dry-run":
+				p.entry.DryRun = true
+			case "--accept-identity-change":
+				p.entry.AcceptIdentityChange = true
 			case "--json":
 				p.json = true
 			case "--help":
@@ -78,18 +88,27 @@ func parse(args []string) (options, error) {
 			case "--version":
 				p.version = true
 			}
-		case "--name":
+		case "--name", "--trust", "--workspace", "--checkout":
 			if !eq {
 				i++
 				if i >= len(args) || strings.HasPrefix(args[i], "--") {
-					return p, workspace.Failure(2, "usage", "--name requires a value")
+					return p, workspace.Failure(2, "usage", key+" requires a value")
 				}
 				value = args[i]
 			}
 			if strings.TrimSpace(value) == "" {
-				return p, workspace.Failure(2, "usage", "--name must not be empty")
+				return p, workspace.Failure(2, "usage", key+" must not be empty")
 			}
-			p.name = &value
+			switch key {
+			case "--name":
+				p.name = &value
+			case "--trust":
+				p.entry.Trust = value
+			case "--workspace":
+				p.entry.WorkspaceID = value
+			case "--checkout":
+				p.entry.Checkout = value
+			}
 		default:
 			return p, workspace.Failure(2, "usage", "unknown option "+key)
 		}
@@ -124,14 +143,21 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 		return render(help, nil, jsonMode, stdout, stderr)
 	}
 	if p.version {
-		return render("desk 0.1.0-dev (workspace metadata)", nil, jsonMode, stdout, stderr)
+		return render("desk 0.1.0-dev (Windows launcher)", nil, jsonMode, stdout, stderr)
 	}
 	if len(p.words) == 0 {
 		return render(nil, workspace.Failure(2, "not_implemented", "workspace picker is not implemented; use desk init, info or list"), jsonMode, stdout, stderr)
 	}
 	command := p.words[0]
-	if command != "init" && command != "info" && command != "list" && command != "config" {
-		return render(nil, workspace.Failure(2, "not_implemented", "opening workspaces, URL operations and other commands are not implemented; use --help"), jsonMode, stdout, stderr)
+	if command == "url" || command == "run" || command == "recent" || command == "find" || command == "resource" || command == "browser" || command == "session" || command == "-" {
+		return render(nil, workspace.Failure(2, "not_implemented", "this command is not implemented; use --help"), jsonMode, stdout, stderr)
+	}
+	if command != "init" && command != "info" && command != "list" && command != "config" && command != "open" {
+		p.words = append([]string{"open"}, p.words...)
+		command = "open"
+	}
+	if command != "open" && (p.entry != launch.Request{}) {
+		return render(nil, workspace.Failure(2, "usage", "entry options apply only to open"), jsonMode, stdout, stderr)
 	}
 	if p.name != nil && command != "init" {
 		return render(nil, workspace.Failure(2, "usage", "--name is only valid for init"), jsonMode, stdout, stderr)
@@ -144,6 +170,38 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 	var data any
 	usage := func() error { return workspace.Failure(2, "usage", "invalid arguments; use desk --help") }
 	switch command {
+	case "open":
+		if len(p.words) > 2 {
+			err = usage()
+			break
+		}
+		if len(p.words) == 2 {
+			p.entry.Selector = p.words[1]
+		}
+		var dir string
+		dir, err = cwd()
+		if err != nil {
+			break
+		}
+		var consent func(launch.Plan) bool
+		if !jsonMode && consoleInput() {
+			consent = func(plan launch.Plan) bool {
+				b, _ := json.MarshalIndent(plan, "", "  ")
+				fmt.Fprintln(stderr, safeJSON(b))
+				fmt.Fprint(stderr, "Approve this checkout and launch recipe? [y/N] ")
+				line, e := bufio.NewReader(os.Stdin).ReadString('\n')
+				return e == nil && strings.EqualFold(strings.TrimSpace(line), "y")
+			}
+		}
+		var result launch.Result
+		result, err = launch.New(s).Open(dir, p.entry, consent)
+		data = result
+		if err != nil {
+			var e *workspace.Error
+			if errors.As(err, &e) && result.Plan.Workspace.RootPath != "" {
+				e.Details = result
+			}
+		}
 	case "init", "info":
 		if (command == "init" && len(p.words) != 1) || (command == "info" && len(p.words) > 2) {
 			err = usage()
@@ -159,13 +217,23 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 			if p.name != nil {
 				name = *p.name
 			}
-			data, err = s.Init(dir, name)
+			var info workspace.Info
+			info, err = s.Init(dir, name)
+			if err == nil {
+				info = launch.New(s).InspectTrust(info)
+			}
+			data = info
 		} else {
 			selector := ""
 			if len(p.words) == 2 {
 				selector = p.words[1]
 			}
-			data, err = s.Info(dir, selector)
+			var info workspace.Info
+			info, err = s.Info(dir, selector)
+			if err == nil {
+				info = launch.New(s).InspectTrust(info)
+			}
+			data = info
 		}
 	case "list":
 		if len(p.words) != 1 {
@@ -212,6 +280,18 @@ func render(data any, err error, jsonMode bool, stdout, stderr io.Writer) int {
 	}
 	var output string
 	switch d := data.(type) {
+	case launch.Result:
+		var b strings.Builder
+		if len(d.Items) == 0 {
+			plan, _ := json.MarshalIndent(d.Plan, "", "  ")
+			b.WriteString(safeJSON(plan) + "\n")
+		} else {
+			fmt.Fprintf(&b, "Workspace: %s\n", safe(d.Plan.Workspace.RootPath))
+			for _, item := range d.Items {
+				fmt.Fprintf(&b, "%s: %s\n", safe(item.ID), item.Status)
+			}
+		}
+		output = b.String()
 	case string:
 		if d == help {
 			output = d
@@ -248,13 +328,22 @@ func render(data any, err error, jsonMode bool, stdout, stderr io.Writer) int {
 		output = b.String()
 	default:
 		b, _ := json.MarshalIndent(data, "", "  ")
-		output = string(b) + "\n"
+		output = safeJSON(b) + "\n"
 	}
 	if _, err := io.WriteString(stdout, output); err != nil {
 		fmt.Fprintln(stderr, "could not write output")
 		return 9
 	}
 	return code
+}
+
+// Preserve JSON layout while escaping invisible formatting controls in labels.
+func safeJSON(b []byte) string {
+	lines := strings.Split(string(b), "\n")
+	for i := range lines {
+		lines[i] = safe(lines[i])
+	}
+	return strings.Join(lines, "\n")
 }
 
 func safe(s string) string {

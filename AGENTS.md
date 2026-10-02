@@ -5,8 +5,8 @@
 Read [plan.md](plan.md) and [namespace.md](namespace.md) in full before the initial
 architecture/specification task. For later work, read their relevant constraints
 and follow the repository's maintained entry points to current specifications,
-code, and checks. README distinguishes working metadata commands from planned
-launch and resource capabilities; do not describe planned commands as working.
+code, and checks. README distinguishes implemented commands from planned
+capabilities; do not describe planned commands as working.
 
 `plan.md` owns product intent and boundaries. `namespace.md` develops the CLI
 semantics. Preserve explicit requirements and non-goals, and distinguish them

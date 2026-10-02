@@ -3,10 +3,10 @@
 A cross-platform project-context launcher for fast re-entry into a working
 directory and its editor, terminal, applications, and saved web resources.
 
-Current state: implementation increment 1 is available. The Go CLI initializes
-workspace configuration, inspects directory/workspace identity, lists registered
-checkouts, and reads device configuration. Application launching, URL management
-and the interactive picker remain planned.
+Current state: increments 1 and 2 are available. The Go CLI initializes and
+inspects workspaces and opens editor, terminal, named application and shared URL
+resources on Windows after recipe approval. Saved URL management, the interactive
+picker, and native launch adapters for macOS/Linux remain planned.
 
 ## Start here
 
@@ -47,9 +47,26 @@ Use `desk config path` to locate device TOML, and `desk config get personal_data
 to inspect the effective personal directory. Edit configuration using the schema
 in SPEC.md. Metadata inspection does not create state or register a checkout;
 unregistered directory identities have empty IDs with `registered: false`.
-Cloned committed configs can be inspected now; automatic registration on entry
-arrives with increment 2. Fuzzy/ambiguous inspection requires an exact selector
-until the interactive picker is implemented. Trust is reported as not implemented.
+Successful entry registers a checkout and updates recency once, including partial
+launch success. Fuzzy/ambiguous selection requires an exact selector until the
+interactive picker is implemented. Info reports `approved`, `approval_required`,
+or `not_evaluated` with a reason when launch preflight cannot complete.
+
+On Windows, inspect `desk open . --dry-run` first. Run `desk .` in an interactive
+console to approve the displayed recipe, or pass the dry run's digest with
+`desk open . --trust <digest>`. JSON mode and redirected input never prompt.
+Approval is local to that checkout and effective recipe; changing a target or
+launcher profile requires new approval. Neither dry run nor info writes state.
+The default editor is native VS Code; the default terminal is Windows Terminal.
+Configure absolute native `.exe` paths in device TOML when defaults are unavailable.
+Shared HTTP(S) URLs use the default browser. See SPEC for profile schemas.
+
+Entry reports dispatch, not GUI readiness or process ownership. It attempts
+remaining resources after a runtime failure and reports all results. A state-write
+failure after launch is reported separately; inspect the results before retrying
+because applications may already be open. Windows network checkouts are unsupported.
+Existing personal workspace stores cause entry to fail explicitly until personal
+resources are implemented; they are never silently skipped.
 
 ## Recovery and verification limits
 
@@ -66,8 +83,13 @@ Registry corruption fails explicitly. Preserve the damaged file, inspect
 while no Desky commands are running. State locations and durability limits are
 defined in SPEC.md. Initial filesystem support requires hard links for publishing
 new config/journal files; unsupported filesystems fail without overwriting data.
+Approval corruption similarly preserves `trust.json`; inspect its `trust.json.bak`
+before restoring a known-good copy. Restoration never transfers another checkout's
+approval. An unfinished init must be recovered before entry can mutate device state.
 
-Windows/amd64 metadata tests run locally, including process concurrency and
-interruption recovery. macOS/Linux builds and CI are separate evidence; no desktop
-launch behavior has been implemented or verified. The next work is increment 2
-in IMPLEMENTATION.md. Keep these limits current as further increments land.
+Windows/amd64 verification includes concurrency/recovery, trust mutation, partial
+launches, state-write failures, real argument/CWD preservation and detached-child
+survival. The desktop smoke evidence and exact app versions are in
+[PILOT.md](PILOT.md). macOS/Linux CI verifies portable logic and explicit unsupported
+launch errors; it does not establish native desktop launch support. The next work
+is increment 3 in IMPLEMENTATION.md.

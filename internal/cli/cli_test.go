@@ -44,7 +44,7 @@ func TestCLIJSONAndErrors(t *testing.T) {
 		{[]string{"list", "--name", "x", "--json"}, 2, "usage"},
 		{[]string{"init", "--name=", "--json"}, 2, "usage"},
 		{[]string{"url", "add", "https://example.com", "--json"}, 2, "not_implemented"},
-		{[]string{"open", ".", "--json"}, 2, "not_implemented"},
+		{[]string{"open", "--json"}, 2, "usage"},
 		{[]string{"--json"}, 2, "not_implemented"},
 	}
 	for _, tt := range cases {

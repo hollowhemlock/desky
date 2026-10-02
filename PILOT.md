@@ -1,9 +1,9 @@
 # Desky autonomy pilot
 
 Status: the first architecture/specification task is documented in
-[SPEC.md](SPEC.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md). No application
-launching or browser integration has been completed. Workspace metadata increment 1
-is implemented; specification and implementation evidence appear below.
+[SPEC.md](SPEC.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md). Workspace metadata
+and Windows entry (increments 1-2) are implemented. Personal URL persistence and
+browser integration remain planned. Evidence appears below.
 
 Baseline: `97f7edb443fde605932fc08378e6021b403d50cd` contains the original README,
 product brief, and terminal namespace design. The policy is the v0.1 snapshot in
@@ -176,6 +176,61 @@ needed before treating this pilot as evidence for global adoption.
   One verification runner serves local use and CI. No copied command inventory
   was added to AGENTS. Human review/rework effort, runtime cost, and usability for
   a fresh agent are not yet independently measured.
+
+### 2026-10-02: Windows launcher increment 2
+
+- Task: continuation toward the first usable Windows launcher. Policy v0.1 is
+  unchanged; no global settings, dependencies or CI configuration were changed.
+  Start: `83abb3354d236305411c1ca4bb1b025d3b8ed7ed`. End: the implementation
+  commit containing this entry on `feat/windows-launcher`; final task output
+  records the commit, push and remote check results.
+- Delivered: read-only plans/digests, checkout-local approval, console consent,
+  exact/script selectors, identity-change acceptance, Windows native editor,
+  terminal, app and URL dispatch, per-resource results and MRU updates. README
+  routes to ownership/tests through internal/README. Saved URLs and picker remain
+  increment 3; other native adapters remain increment 4.
+- Actual local gate: Go 1.27.0, Windows/amd64, `go run ./tools/verify` passed
+  formatting, vet, tests and build. Tests cover unapproved/cancelled/read-only
+  flows, target/profile changes, another worktree, re-preflight during approval,
+  identity rebinding, corrupt trust, independent dispatch after failure, all-failed
+  nonregistration, failed recency writes, concurrent entries and MRU ordering.
+  CLI subprocess tests verify persisted consent across process restarts.
+- Native helper tests: a detached delayed executable survived launcher exit and
+  received exact arguments/CWD containing spaces, Unicode, leading punctuation,
+  ampersands, semicolons, percent/dollar expressions, quotes and trailing slashes.
+  Empty arguments survive; injection markers are absent. Default lookup rejects
+  checkout executables and relative PATH entries. These are process tests, not
+  evidence of GUI readiness.
+- Desktop smoke: Windows 11 build 26200, VS Code 1.139.1, Windows Terminal package
+  1.24.11911.0 (product 1.24.260710001), Firefox 157.0. A disposable workspace
+  named `-Desky 雪 & sample; punctuation` used isolated device state/config,
+  configured native Code with `--new-window`, default Terminal `new-tab -d .`,
+  and `https://example.com/#desky-launcher-smoke`. All dispatches returned success;
+  window enumeration showed the exact editor folder and Example Domain. Detailed
+  computer-use inspection timed out awaiting app access. The user then explicitly
+  confirmed all three opened correctly, including Terminal in the selected folder.
+  Repeat entry reused approval and dispatched all three; info reported approved
+  trust and count 2. The invoking shell's CWD was unchanged. Device files contain
+  registry/trust/backup/lock only, with no process ownership or teardown records.
+  Existing desktop apps were not closed or supervised.
+  A further isolated run used actual default lookup with no device profiles:
+  native Code `--reuse-window`, Terminal and URL all dispatched successfully;
+  the editor folder and Example Domain window titles remained observable.
+- Refinements: Terminal's own semicolon parser requires passing `.` through its
+  argv and setting the child CWD natively. Re-preflight under the device lock
+  detects recipe/profile changes during consent. Approval precedes dispatch;
+  registration/recency follow at least one success. State failures retain per-item
+  outcomes and warn against blind retry. Info remains usable with a trust-preflight
+  diagnostic when a launcher or personal directory is unavailable.
+- Limits: first-launch visible behavior was user-confirmed; repeat/default runs
+  have dispatch and window-title evidence, not automated GUI focus assertions. No
+  macOS/Linux desktop behavior is claimed. Local race execution still lacks a C
+  toolchain; CI's Linux race job is separate evidence, reported after it runs.
+- Coordination: one user observation request closed the native desktop gate after
+  tool app-access timeout. No product/architecture decision or routine proposal
+  approval was needed. Tool permission prompts are separate from product approval.
+  Computer-use skill was used for window discovery. Human effort/cost beyond that
+  observation was not independently measured. No generic pilot policy revisions.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
