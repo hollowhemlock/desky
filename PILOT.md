@@ -165,7 +165,10 @@ needed before treating this pilot as evidence for global adoption.
 - Findings addressed: a malformed registry missing schema_version initially
   inherited a default; a regression test caught it and decoding now rejects it.
   Review also tightened storage overlap in both directions and clarified current
-  versus planned commands. No product clarification was needed. Tool permission
+  versus planned commands. The first CI run passed native Linux/macOS gates and
+  the Linux race check; Windows exposed checkout CRLF conversion before tests.
+  A repository Go-file LF attribute corrects this without weakening gofmt checks.
+  No product clarification was needed. Tool permission
   escalations for Git/cache/network access are separate from product approval;
   their actual outcomes are in the task transcript.
 - Navigation: README -> internal/README -> workspace service/config/registry and
