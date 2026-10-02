@@ -1,7 +1,9 @@
 # Desky autonomy pilot
 
-Status: local guidance prepared. No application task, behavioral evaluation, or
-cross-platform execution has been completed by this setup.
+Status: the first architecture/specification task is documented in
+[SPEC.md](SPEC.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md). No application
+implementation, behavioral evaluation, or cross-platform execution has been
+completed. Specification-task evidence appears below.
 
 Baseline: `97f7edb443fde605932fc08378e6021b403d50cd` contains the original README,
 product brief, and terminal namespace design. The policy is the v0.1 snapshot in
@@ -89,6 +91,47 @@ claim fails the candidate for adoption until addressed and retested. Otherwise
 judge correct completion, appropriate questions, bounded improvements, and easier
 continuation without chat history. A second materially different repository is
 needed before treating this pilot as evidence for global adoption.
+
+### 2026-10-01: initial architecture/specification
+
+- Task: current Codex task invoked via this file; a shareable task link was not
+  exposed or created. Policy v0.1 unchanged. Runtime identifies the GPT-6 family;
+  exact model variant, reasoning setting, token/cost totals and independently
+  measured human effort are unavailable.
+- Start: `cc5e0ae28c1bb3b6dd976ca61165d7ea6fd6d492`, clean `autonomy-pilot` branch.
+  End: the documentation commit containing this entry on
+  `docs/initial-specification` (resolve with `git log -1 --format=%H -- PILOT.md`).
+  The task's final report records the resulting commit hash and push outcome;
+  this entry does not predict remote success.
+- Delivered: selected defaults/contracts in SPEC.md; four increments with
+  observable acceptance and readiness review in IMPLEMENTATION.md; README routes
+  and project-specific AGENTS reading guidance. Original plan.md and namespace.md
+  are unchanged. No toolchain, application code, manifest or CI was added.
+- Actual checks: local Markdown links resolved; all three SPEC TOML/JSON examples
+  parsed using Python 3.13 standard-library parsers; new-document code fences and
+  whitespace checked; source-document diff empty. Staged whitespace/diff review
+  is the final pre-commit gate. These are document checks, not application tests.
+- Source coverage review: product identity/storage/privacy and non-goals map to
+  SPEC identity, configuration, storage and browser sections; namespace selection,
+  script output and errors map to its CLI section; launch boundaries map to its
+  platform section. IMPLEMENTATION defines acceptance for each of those areas.
+  Deferred command examples are explicitly separated from release requirements.
+- Review corrections: clarified bare-command precedence, unregistered inspection,
+  identity changes, external concurrent personal edits, launch trust and partial
+  failures. Trusted Unix launcher scripts need direct shebang execution; Windows
+  profiles require native executables. No material product decision is pending
+  for increment 1. Native OS behavior remains unverified.
+- Coordination: no product clarification/proposal-approval questions; the pilot
+  explicitly waived routine proposal review. Git branch creation required a tool
+  permission escalation because `.git` is sandbox read-only; later Git permission
+  outcomes are visible in the task transcript, separately from product decisions.
+  No global configuration, policy revision or additional skill installation.
+- Navigation walkthrough: README -> SPEC resource storage contract ->
+  IMPLEMENTATION increment 3 acceptance; cross-feature entry continues through
+  SPEC launch policy -> increments 2/4. This is a structural walkthrough only:
+  implementation/tests do not exist. No duplicate command lists were added to
+  AGENTS. Future implementation moves should update feature routes, not rewrite
+  the root's internal file inventory. Later-task usability has not been measured.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No

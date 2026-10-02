@@ -15,6 +15,12 @@ names are provisional. Do not treat the entire eventual CLI tree as first-releas
 scope. Surface a material unresolved conflict instead of silently dropping a
 requirement.
 
+[SPEC.md](SPEC.md) owns the selected first-release contracts and technical
+defaults. Read its affected sections before implementation or review.
+[IMPLEMENTATION.md](IMPLEMENTATION.md) owns the incremental execution plan,
+acceptance, and planned verification. Neither document describes working code
+yet. README routes to actual implementation and checks as increments land.
+
 The initial task in [PILOT.md](PILOT.md) follows the architecture/specification
 phase requested by `plan.md`. Keep that task documentation-only. Later explicit
 implementation requests authorize implementation under the policy below; the
