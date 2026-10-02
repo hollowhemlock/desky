@@ -309,6 +309,45 @@ needed before treating this pilot as evidence for global adoption.
   Document checks and policy comparison validate this adoption. No application
   tests or implementation trial of v0.2 are claimed.
 
+### 2026-10-02: first-URL-save recovery repair
+
+- Task: repair failed first-save/retry behavior and preserve existing/external
+  personal data; stop after this repair. Policy v0.2 unchanged. Start:
+  `f25201ff294fdc42e57b2e116644769313f2bab1`, clean working tree. End: the repair
+  commit containing this entry on `fix/first-url-save-recovery`; final task output
+  records its hash, push outcome and available remote checks. Exact model settings,
+  runtime cost and measured human effort are unavailable; no global settings,
+  dependencies, CI or pilot policy changes.
+- Reproduced: the publisher created a resource directory before writing its first
+  revision. An injected write failure left it empty; a successful retry created a
+  second directory, while the first remained a permanent incomplete-data conflict.
+  The regression failed in both a new directory workspace and one with saved data.
+- Repair: track whether this publication created the resource directory and, on
+  write failure, attempt only an atomic empty-directory removal. Never unlink a
+  file or recursively delete contents. Preexisting directories remain untouched;
+  any delivered file prevents removal. Late publication errors retain revisions,
+  and retry uses existing URL deduplication. Registration remains stable without
+  entry counts or trust. README/SPEC describe the recovery boundary and internal
+  navigation points to the regression tests.
+- Actual local verification: targeted resources/fileio tests and the full
+  `go run ./tools/verify` gate passed on Go 1.27.0, Windows/amd64, including formatting,
+  vet, all tests and executable build. The new tests recreate services before
+  retry, verify usable status mutation, preserve earlier history and preexisting
+  empty directories, and simulate provider copies, temporary delivery, a replaced
+  directory and a published revision followed by an error. The build reported a
+  nonfatal module metadata cache-write warning. Local race execution was attempted
+  but Go rejected it because CGO is disabled; remote race evidence is separate.
+- Limits: abrupt process termination before cleanup or a cleanup failure can
+  still leave an incomplete directory. Such data remains visible for inspection;
+  there is no sweeping repair of old or externally synchronized empty directories.
+  This task does not implement increment 4 or qualify new desktop platforms.
+- Completion review: a fresh reviewer inspected the full task diff, retry and
+  deduplication paths, cleanup safety, external delivery and recovery docs; no
+  actionable defects were found. The implementing agent also inspected the diff
+  and integration paths. No product clarification or routine approval questions;
+  Git/network sandbox escalations are separate tool permissions. Review used the
+  personal commit-review-loop skill and one reviewer; no skill files were changed.
+
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
 global Codex configuration needs to be rolled back.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -97,6 +98,15 @@ func Lock(dir string, timeout time.Duration) (func(), error) {
 func RemovePublished(path string) error {
 	if err := os.Remove(path); err != nil {
 		return err
+	}
+	return syncDirectory(filepath.Dir(path))
+}
+
+// RemoveEmptyDirectory never unlinks files, even if another writer replaces the
+// directory before removal. The OS checks emptiness atomically with removal.
+func RemoveEmptyDirectory(path string) error {
+	if err := syscall.Rmdir(path); err != nil {
+		return &os.PathError{Op: "rmdir", Path: path, Err: err}
 	}
 	return syncDirectory(filepath.Dir(path))
 }

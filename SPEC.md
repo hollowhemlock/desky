@@ -279,6 +279,14 @@ directory identity allocation and registration in one locked transaction.
 URL save persists registration before publishing personal data so interrupted or
 failed publication cannot orphan a newly allocated directory identity. A failed
 save can therefore leave registration, but never recency/count or approval.
+On revision-write failure, remove only the resource directory created by that
+attempt, using an atomic empty-directory removal that cannot unlink a file.
+Never remove preexisting resource directories or any contents. A successfully
+cleaned-up failure leaves no orphan conflict on retry; a revision published
+before a late error remains available for normal URL deduplication. Failed cleanup
+is reported. Process termination before cleanup can still leave an incomplete
+directory; readers continue diagnosing it, including externally arriving empty
+directories, rather than silently ignoring or sweeping them.
 Initialization first publishes device `pending-init.json`: schema version 1,
 the prepared checkout record, and base64-encoded generated config bytes. Under
 the registry lock, init completes this journal before another registration, but

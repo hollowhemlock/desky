@@ -119,6 +119,14 @@ URL. A failed URL write can leave that registration, but no entry count or trust
 retrying retains the same identity. Clearing device state never deletes personal
 revisions; directory-only workspaces need their original association restored.
 
+If revision publication fails, Desky removes the resource directory only when
+that attempt created it and it is still empty. Retry then saves without an orphan
+conflict. Existing directories and all files, including external deliveries and
+revisions published before a late write error, are preserved. A retry reuses an
+already-published matching URL. If cleanup fails or the process stops before it
+runs, the remaining directory is still diagnosed as incomplete; preserve it and
+inspect backup/provider history rather than deleting potentially incoming data.
+
 Windows/amd64 verification includes concurrency/recovery, trust mutation, partial
 launches, state-write failures, real argument/CWD preservation and detached-child
 survival. The desktop smoke evidence and exact app versions are in

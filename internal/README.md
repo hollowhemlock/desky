@@ -11,7 +11,7 @@ implemented. Native launch adapters for other platforms remain planned.
 | Registry validation, backups and init recovery | [workspace/registry.go](workspace/registry.go) | Recovery/concurrency cases in workspace/service_test.go |
 | Exact entry selectors, identity rebinding and recency transaction | [workspace/entry.go](workspace/entry.go) | [launch/launch_test.go](launch/launch_test.go) |
 | Personal storage selection and save-time identity | [workspace/personal.go](workspace/personal.go) | [resources/resources_test.go](resources/resources_test.go) |
-| Immutable URL revisions, conflicts and status operations | [resources/store.go](resources/store.go), [resources/service.go](resources/service.go) | [resources/resources_test.go](resources/resources_test.go) |
+| Immutable URL revisions, conflicts and status operations | [resources/store.go](resources/store.go), [resources/service.go](resources/service.go) | [resources/resources_test.go](resources/resources_test.go), [failed-save recovery](resources/recovery_test.go) |
 | MRU picker, filtering and URL CLI | [cli/picker.go](cli/picker.go), [cli/urls.go](cli/urls.go) | [cli/urls_test.go](cli/urls_test.go), terminal smoke in [PILOT](../PILOT.md) |
 | Read-only launch planning, digest consent and dispatch results | [launch/launch.go](launch/launch.go) | [launch/launch_test.go](launch/launch_test.go) |
 | Conflict isolation, pin merging and large-workspace latency | [launch/launch.go](launch/launch.go) | [launch/resources_test.go](launch/resources_test.go), [launch/benchmark_test.go](launch/benchmark_test.go) |

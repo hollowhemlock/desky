@@ -273,11 +273,14 @@ func publish(dir string, r Revision, write func(string, []byte, bool) error) err
 		return err
 	}
 	p := dir
+	createdResource := false
 	for _, part := range []string{"workspaces", r.WorkspaceID, "resources", r.ResourceID} {
 		p = filepath.Join(p, part)
-		if err := os.Mkdir(p, 0700); err != nil && !os.IsExist(err) {
+		err := os.Mkdir(p, 0700)
+		if err != nil && !os.IsExist(err) {
 			return err
 		}
+		createdResource = part == r.ResourceID && err == nil
 		if err := directory(p); err != nil {
 			return err
 		}
@@ -287,6 +290,14 @@ func publish(dir string, r Revision, write func(string, []byte, bool) error) err
 		return err
 	}
 	if err = write(filepath.Join(p, r.RevisionID+".json"), append(b, '\n'), false); err != nil {
+		// Roll back only our new, still-empty directory. Never sweep existing
+		// directories: they may be awaiting external delivery. A late publish
+		// error or any arriving file makes rmdir fail without removing data.
+		if createdResource {
+			if cleanupErr := fileio.RemoveEmptyDirectory(p); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+				err = fmt.Errorf("%w (resource directory retained or cleanup not durable: %v)", err, cleanupErr)
+			}
+		}
 		return failure(fmt.Sprintf("could not publish revision for resource %s; preserve files and inspect before retrying: %v", r.ResourceID, err))
 	}
 	return nil
