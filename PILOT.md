@@ -2,8 +2,8 @@
 
 Status: the first architecture/specification task is documented in
 [SPEC.md](SPEC.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md). No application
-implementation, behavioral evaluation, or cross-platform execution has been
-completed. Specification-task evidence appears below.
+launching or browser integration has been completed. Workspace metadata increment 1
+is implemented; specification and implementation evidence appear below.
 
 Baseline: `97f7edb443fde605932fc08378e6021b403d50cd` contains the original README,
 product brief, and terminal namespace design. The policy is the v0.1 snapshot in
@@ -132,6 +132,47 @@ needed before treating this pilot as evidence for global adoption.
   implementation/tests do not exist. No duplicate command lists were added to
   AGENTS. Future implementation moves should update feature routes, not rewrite
   the root's internal file inventory. Later-task usability has not been measured.
+
+### 2026-10-01: workspace metadata increment 1
+
+- Task: continuation of the current Codex task, requested as "Continue with the
+  plan." Policy remains v0.1; runtime model/settings and cost visibility are as
+  recorded above. No model, global policy or skill changes.
+- Start: `75c079dce321d6785d18c2adbed62f2d2e003170`, clean specification checkout.
+  End: the implementation commit containing this entry on
+  `feat/workspace-identity`; final task output records its hash and push result.
+- Delivered: Go module and pinned dependencies; init/info/list/config commands;
+  shared/device TOML validation; directory versus explicit workspace IDs; registry
+  locking, backup and recoverable initialization; typed/JSON errors. Code and tests
+  are routed through internal/README.md. Application launching, URL persistence
+  and picker remain unimplemented, with explicit CLI errors.
+- Technical refinement: init spans repository and external device filesystems.
+  A small pending journal makes partial initialization recoverable without replacing
+  a user-modified config. SPEC and README describe this and the hard-link filesystem
+  requirement. The three storage scopes and source briefs are preserved.
+- Actual local verification: the verification runner passed formatting, vet, tests
+  and Windows/amd64 build using Go 1.27.0. Tests exercise fresh subprocesses,
+  concurrent registrations, kernel lock release on process exit, interrupted file
+  publication/init, preserved corruption, schema rejection, ambiguous names,
+  symlink/case aliases, and checkout/storage separation. Both alias subtests ran
+  successfully on this host. A built-binary smoke test used a disposable profile
+  and checked init/info/list/config, persistence, repeat-init refusal and unsupported
+  open. Linux/amd64 and macOS/arm64 cross-builds passed; these are not native tests.
+- Verification limit: local race execution was attempted but unavailable because
+  CGO is disabled and a C compiler is absent. CI config runs the same gate on
+  Windows, macOS and Linux with an additional Linux race check; remote results are
+  reported in the task output, not assumed here. No GUI behavior has been verified.
+- Findings addressed: a malformed registry missing schema_version initially
+  inherited a default; a regression test caught it and decoding now rejects it.
+  Review also tightened storage overlap in both directions and clarified current
+  versus planned commands. No product clarification was needed. Tool permission
+  escalations for Git/cache/network access are separate from product approval;
+  their actual outcomes are in the task transcript.
+- Navigation: README -> internal/README -> workspace service/config/registry and
+  their tests; CLI integration tests exercise the same service across processes.
+  One verification runner serves local use and CI. No copied command inventory
+  was added to AGENTS. Human review/rework effort, runtime cost, and usability for
+  a fresh agent are not yet independently measured.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No

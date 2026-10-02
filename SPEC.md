@@ -1,7 +1,8 @@
 # Desky first-release specification
 
-Status: selected technical defaults for implementation; **nothing described here
-is implemented yet**. [plan.md](plan.md) owns product boundaries;
+Status: selected first-release contracts; workspace metadata (increment 1) is
+implemented, while launching, personal URL persistence and selection UI are not.
+[README.md](README.md) describes the working surface. [plan.md](plan.md) owns product boundaries;
 [namespace.md](namespace.md) supplies CLI intent and provisional examples. This
 document owns the concrete first-release contract. [IMPLEMENTATION.md](IMPLEMENTATION.md)
 owns sequencing and acceptance, not additional requirements.
@@ -33,8 +34,8 @@ Choose Go, one module and one CLI executable, with the standard library for
 arguments, JSON, paths, process invocation, hashing and tests. Use
 [BurntSushi/toml](https://github.com/BurntSushi/toml) for TOML parsing and encoding;
 use `golang.org/x/sys/windows` for the small Windows native boundary if required.
-Pin the supported Go release and dependency versions in the first implementation
-increment's `go.mod`/`go.sum`; do not install or invent those manifests now.
+The supported Go release and dependency versions are pinned in
+[go.mod](go.mod)/[go.sum](go.sum).
 No web framework, database server, embedded SQL database or plugin framework.
 Go avoids requiring users to provision an interpreter; plain files allow an
 externally synchronized personal directory without synchronizing a live database.
@@ -81,6 +82,8 @@ machine cannot discover the association from the path. `init` at that root reuse
 the directory workspace UUID so existing saved pages keep their identity.
 Otherwise `init` generates a UUID. It writes only `workspace.toml`, refuses to
 overwrite any existing file, and does not stage/commit files or change ignores.
+The initial recipe contains an editor resource at `.`. A retry after interrupted
+initialization may finish its journaled registration, without rewriting the config.
 
 If an already registered root changes explicit ID, fail with `identity_changed`
 before launching or saving. Explain the old/new IDs. Explicit path opening with
@@ -148,8 +151,9 @@ pins. If the final plan is empty, report `nothing_to_open` without recording an
 entry; inspection and saving still work.
 
 Read-only inspection of an unregistered directory uses a transient identity,
-clearly marked unregistered, and never persists a generated UUID. Initialization
-or saving allocates the stable directory identity under the registry lock.
+clearly marked `registered: false`, with empty checkout/directory workspace IDs,
+and never persists a generated UUID. An explicit config ID remains visible.
+Initialization or saving allocates the stable directory identity under the registry lock.
 
 Device configuration `config.toml`:
 
@@ -266,6 +270,13 @@ or `directory`), `name`, `last_entered_at` (nullable UTC time), and `entry_count
 (nonnegative integer). No browser data. Registration occurs on successful init,
 URL save, or a dispatched entry, never as a side effect of list/info. Keep
 directory identity allocation and registration in one locked transaction.
+Initialization first publishes device `pending-init.json`: schema version 1,
+the prepared checkout record, and base64-encoded generated config bytes. Under
+the registry lock, init completes this journal before another registration, but
+only if the config is absent or exactly matches those bytes. It then saves the
+registry and removes the journal. A conflicting config is preserved and diagnosed;
+there is no two-filesystem atomic transaction claim. Read-only commands never
+recover or write pending state. See README for manual recovery procedures.
 Trust records live separately in device `trust.json`: schema version and records
 of checkout ID, approved launch-plan digest, and approval time. They do not sync.
 
@@ -276,7 +287,9 @@ state to empty silently; explain backup recovery. Lock contention has a bounded
 two-second timeout. Use the same per-device lock for local personal mutations;
 it does not coordinate other machines. Immutable personal writes use a temporary
 file, flush and publish without replacement; ignore temporary suffixes when
-reading. Flush directory metadata where supported. Report write/flush failures
+reading. New-file publication currently uses hard links and requires filesystem
+support; unsupported filesystems fail explicitly. Flush directory metadata where
+supported. Report write/flush failures
 without claiming success. Readers tolerate only fully published files.
 
 Default to user-only permissions where supported; inherit the user's private
@@ -287,7 +300,7 @@ trust or launcher executables in personal records. No saved data expires.
 
 ## CLI, resolution and output
 
-Planned commands (not available today):
+First-release command contract (README and CLI help distinguish implemented commands):
 
 | Command | Contract |
 |---|---|

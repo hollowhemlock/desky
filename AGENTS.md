@@ -5,8 +5,8 @@
 Read [plan.md](plan.md) and [namespace.md](namespace.md) in full before the initial
 architecture/specification task. For later work, read their relevant constraints
 and follow the repository's maintained entry points to current specifications,
-code, and checks. The initial repository has no implementation or test runner;
-do not describe proposed files or commands as working.
+code, and checks. README distinguishes working metadata commands from planned
+launch and resource capabilities; do not describe planned commands as working.
 
 `plan.md` owns product intent and boundaries. `namespace.md` develops the CLI
 semantics. Preserve explicit requirements and non-goals, and distinguish them
@@ -18,8 +18,9 @@ requirement.
 [SPEC.md](SPEC.md) owns the selected first-release contracts and technical
 defaults. Read its affected sections before implementation or review.
 [IMPLEMENTATION.md](IMPLEMENTATION.md) owns the incremental execution plan,
-acceptance, and planned verification. Neither document describes working code
-yet. README routes to actual implementation and checks as increments land.
+acceptance, and remaining verification gates. README routes to implemented
+capabilities through [internal/README.md](internal/README.md), and to the
+authoritative verification runner. Follow those routes as increments land.
 
 The initial task in [PILOT.md](PILOT.md) follows the architecture/specification
 phase requested by `plan.md`. Keep that task documentation-only. Later explicit

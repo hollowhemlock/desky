@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: ready to begin increment 1; all increments below are **unimplemented**.
+Status: increment 1 is implemented; increments 2-4 remain **unimplemented**.
 [SPEC.md](SPEC.md) is authoritative for behavior and technical decisions.
 Do not scaffold the entire plan at once. Each increment should leave a usable,
 verified slice and update README navigation to its actual code and checks.
@@ -130,12 +130,11 @@ requires a separate branding/support/distribution decision and authorization.
 
 ## Verification and completion discipline
 
-When the module exists, start with affected Go package tests; the full gate is
-formatting, `go vet ./...`, `go test ./...`, and building the executable. Run race
-checks on hosts/toolchains that support them for changed concurrent persistence.
-These are planned commands, not commands executed or available in this repository
-today. Put executable verification orchestration in one maintained source when
-needed and link it from README; avoid duplicated command inventories in AGENTS.
+Start with affected Go package tests; the full gate is now maintained by
+[tools/verify/main.go](tools/verify/main.go), invoked as documented in README.
+Run race checks on hosts/toolchains that support them for changed concurrent
+persistence. CI invokes the same runner on the three target OSes and adds a
+Linux race check; a configured workflow is not evidence of a successful run.
 An interface test must exercise observable behavior, not just mirror private code.
 
 Each increment documents actual implementation, constraints and verification via
@@ -170,10 +169,11 @@ cross-platform success claims. Immutable personal revisions cost additional file
 but avoid overwriting concurrent intentional data; no general sync service is
 introduced. Repository actions and browser capture stay outside the release.
 
-**Readiness judgment: Ready now to begin increment 1.** The sequence has bounded
+**Initial specification review: Ready to begin increment 1.** The sequence has bounded
 acceptance and explicit native verification gates. No unanswered material product
 choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
-**Next action:** implement increment 1 on a task branch containing the specification,
-starting with directory identity/configuration fixtures and their CLI contracts.
+**Next action:** implement increment 2 on a task branch containing the verified
+metadata implementation. Preserve the identity and persistence contracts and add
+launch planning, trust and current-host dispatch behind the specified boundary.
