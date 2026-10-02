@@ -1,8 +1,8 @@
 # Desky first-release specification
 
-Status: selected first-release contracts; workspace metadata and Windows entry
-(increments 1-2) are implemented. Personal URL persistence, selection UI and
-native launch adapters for other platforms remain planned.
+Status: selected first-release contracts; workspace metadata, Windows entry,
+personal URL persistence and selection UI (increments 1-3) are implemented.
+Native launch adapters for other platforms remain planned.
 [README.md](README.md) describes the working surface. [plan.md](plan.md) owns product boundaries;
 [namespace.md](namespace.md) supplies CLI intent and provisional examples. This
 document owns the concrete first-release contract. [IMPLEMENTATION.md](IMPLEMENTATION.md)
@@ -253,8 +253,12 @@ records, cycles, differing content with the same revision ID, and unknown schema
 versions are errors. Preserve all files and show affected resource IDs; do not
 pick a winner by clock. Readers inspect regular `.json` files even if an external
 provider renamed them as conflict copies, deduplicating identical revision IDs.
-The URL list includes conflicts; entry refuses before launching if personal
-resources cannot be interpreted safely. Unrelated inspection remains available.
+The URL list includes conflicts. Entry skips each affected personal resource and
+reports its ID/reason, while shared resources and healthy personal pins still
+open. This explicitly replaces the original whole-entry conflict barrier at the
+user's increment 3 request. Malformed, incomplete and unknown-schema resources
+are similarly isolated. Failure to enumerate the overall store still blocks
+entry because affected resources cannot be identified. Preserve every file.
 
 `url pin/unpin/archive/restore <id> --resolve` explicitly selects that status for
 a conflicted resource and writes a snapshot citing all current heads, provided
@@ -272,6 +276,9 @@ or `directory`), `name`, `last_entered_at` (nullable UTC time), and `entry_count
 (nonnegative integer). No browser data. Registration occurs on successful init,
 URL save, or a dispatched entry, never as a side effect of list/info. Keep
 directory identity allocation and registration in one locked transaction.
+URL save persists registration before publishing personal data so interrupted or
+failed publication cannot orphan a newly allocated directory identity. A failed
+save can therefore leave registration, but never recency/count or approval.
 Initialization first publishes device `pending-init.json`: schema version 1,
 the prepared checkout record, and base64-encoded generated config bytes. Under
 the registry lock, init completes this journal before another registration, but
@@ -329,6 +336,9 @@ the plan/digest but performs no registration, approval or launching. Its propose
 directory-only identity is marked ephemeral until registration. `--workspace`
 may address an explicit UUID with personal data but no local checkout for URL
 operations; opening always requires a local checkout. Unknown UUIDs fail.
+Exact UUID URL operations address personal data only, without selecting an
+arbitrary checkout's shared recipe. Current-directory URL listings also include
+that checkout's shared URLs.
 
 Reserved commands take precedence at the root; use `desk open config` for a
 workspace named `config`, `desk ./config` for a path. `--` ends option parsing.
@@ -346,8 +356,9 @@ has several available checkouts, use the containing checkout if invoked inside
 one, otherwise prompt interactively or require `--checkout` for scripts. Never
 choose a branch based on remote URL or silently choose an arbitrary checkout.
 
-The picker lists available checkouts, with shared workspace names grouped visually
-but distinct paths selectable. Sort by most recent successful entry, then entry
+The picker lists available checkouts with consecutive identical workspace names
+grouped under a heading and distinct numbered paths selectable. Grouping never
+reorders MRU results. Sort by most recent successful entry, then entry
 count, then name and canonical path for stable ties; unentered checkouts sort
 last. This is MRU-first, a deliberate simpler alternative to an unproven frecency
 formula. Begin with a line-oriented numbered selector supporting typed query
@@ -356,13 +367,17 @@ accessibility and speed without requiring an external fuzzy finder or shell hook
 Empty registry explains `desk .`/`desk init`; bare command without a TTY fails with
 guidance to `list` or explicit `open`. Never read piped input as implicit consent.
 
-URL add defaults to saved, `--pin` to pinned. Adding an existing normalized URL
-returns its ID without changing status/title; use a status command for changes.
+URL add defaults to saved, `--pin` to pinned. Adding an existing normalized
+personal URL returns its ID without changing status/title; use a status command
+for changes.
 Deduplicate concurrent identical additions for launching, but retain/list their
 distinct resource IDs. Shared URLs are read-only to URL mutation commands; display
 origin and direct edits to workspace.toml. Personal status changes never mutate
 the shared recipe. Open shared URLs plus personal pins once per normalized URL;
 saved and archived personal pages do not open. No title scraping or capture.
+Human URL output uses an untitled placeholder when the title defaults to the URL;
+JSON inspection contains full intentional snapshots. `:q` cancels the picker and
+`/` clears its filter. JSON and redirected input never enable selection or consent.
 
 Structured results have `schema_version: 1`, `ok`, and either `data` or `error`
 (`code`, `message`, optional `details`). JSON mode disables prompts and produces
@@ -401,8 +416,10 @@ Changing source formatting alone need not invalidate trust. Personal URL pins ar
 explicit user data and do not require repository reapproval, but remain visible
 in the plan; external personal-directory writers can therefore influence entry.
 
-Preflight validates all resources, paths, profiles, personal conflicts and trust
-before dispatching anything. Shared resources run in listed order; personal pins
+Preflight validates paths, profiles and trust, and classifies personal resources
+before dispatching anything. Conflicting/uninterpretable personal resources are
+reported as skipped; all other preflight failures still dispatch nothing.
+Shared resources run in listed order; healthy personal pins
 follow in resource-ID order. At runtime, attempt remaining independent items after
 a launch failure, report each result, and return a failure code. Do not undo,
 close, or supervise applications. Record recency/count once when at least one
@@ -411,6 +428,11 @@ report the successful launches and state failure; never suggest a blind retry.
 Preflight errors cause no launch; dry run causes no writes. For mixed runtime
 failures, launch failure (8) takes precedence over state-write failure (9), while
 structured output contains both.
+An entry with skipped personal resources returns resource failure (9) after
+attempting the unaffected plan; dispatch failure (8) takes precedence. Dry run
+shows the skipped IDs/reasons without dispatch or writes. If only skipped
+resources remain, return resource failure without recording entry. Personal pins
+are re-read after consent and excluded from the shared recipe approval digest.
 
 The platform boundary accepts only `OpenURL(url)`, `OpenEditor(path, profile)`,
 `OpenTerminal(directory, profile)`, and `OpenApp(profile)` and returns dispatch

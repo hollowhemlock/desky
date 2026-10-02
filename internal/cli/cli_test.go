@@ -43,9 +43,9 @@ func TestCLIJSONAndErrors(t *testing.T) {
 		{[]string{"info", "--unknown", "--json"}, 2, "usage"},
 		{[]string{"list", "--name", "x", "--json"}, 2, "usage"},
 		{[]string{"init", "--name=", "--json"}, 2, "usage"},
-		{[]string{"url", "add", "https://example.com", "--json"}, 2, "not_implemented"},
+		{[]string{"url", "add", "https://example.com", "--all", "--json"}, 2, "usage"},
 		{[]string{"open", "--json"}, 2, "usage"},
-		{[]string{"--json"}, 2, "not_implemented"},
+		{[]string{"--json"}, 2, "interaction_required"},
 	}
 	for _, tt := range cases {
 		exit, out, stderr := invoke(t, root, l, tt.args...)

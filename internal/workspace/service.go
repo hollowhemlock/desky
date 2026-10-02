@@ -158,7 +158,7 @@ func (s *Service) Info(cwd, selector string) (Info, error) {
 			}
 		}
 		if len(matches) > 0 {
-			e := Failure(4, "ambiguous_workspace", "fuzzy matches require the later interactive picker; use an exact path, UUID or name")
+			e := Failure(4, "ambiguous_workspace", "fuzzy matches require terminal selection; use an exact path, UUID or name in scripts")
 			e.Details = matches
 			return Info{}, e
 		}

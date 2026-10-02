@@ -3,10 +3,10 @@
 A cross-platform project-context launcher for fast re-entry into a working
 directory and its editor, terminal, applications, and saved web resources.
 
-Current state: increments 1 and 2 are available. The Go CLI initializes and
-inspects workspaces and opens editor, terminal, named application and shared URL
-resources on Windows after recipe approval. Saved URL management, the interactive
-picker, and native launch adapters for macOS/Linux remain planned.
+Current state: increments 1-3 are available. The Go CLI selects recent projects,
+retains personal URLs, and opens editor, terminal, named application and URL
+resources on Windows after recipe approval. Native launch adapters for
+macOS/Linux remain planned.
 
 ## Start here
 
@@ -48,8 +48,10 @@ to inspect the effective personal directory. Edit configuration using the schema
 in SPEC.md. Metadata inspection does not create state or register a checkout;
 unregistered directory identities have empty IDs with `registered: false`.
 Successful entry registers a checkout and updates recency once, including partial
-launch success. Fuzzy/ambiguous selection requires an exact selector until the
-interactive picker is implemented. Info reports `approved`, `approval_required`,
+launch success. Bare `desk` opens a numbered recent picker; type a query to filter,
+Enter for the first displayed item, `/` to clear, or `:q` to cancel. Ambiguous and
+fuzzy selectors use the picker in a terminal; scripts require exact selectors.
+Info reports `approved`, `approval_required`,
 or `not_evaluated` with a reason when launch preflight cannot complete.
 
 On Windows, inspect `desk open . --dry-run` first. Run `desk .` in an interactive
@@ -65,8 +67,34 @@ Entry reports dispatch, not GUI readiness or process ownership. It attempts
 remaining resources after a runtime failure and reports all results. A state-write
 failure after launch is reported separately; inspect the results before retrying
 because applications may already be open. Windows network checkouts are unsupported.
-Existing personal workspace stores cause entry to fail explicitly until personal
-resources are implemented; they are never silently skipped.
+Conflicting or damaged personal URL resources are reported as skipped, while
+shared resources and healthy personal pins still open. Such entry returns exit 9
+(or 8 if dispatch also fails); JSON includes every skipped/dispatched/failed result.
+
+Save an intentional URL with `desk url add <url> --title <text>`; add `--pin` to
+open it on entry. `desk url list --all` includes archived URLs and always shows
+conflicts. `pin`, `unpin`, `archive`, and `restore` take a personal resource UUID;
+unpin/restore set it to saved. Saved and archived URLs do not open. Existing
+normalized personal URLs keep their ID, title and status when added again.
+Shared URLs stay read-only; entry deduplicates them with personal pins. No URL
+fetch, title scraping or clipboard access occurs. Use `--json` to retrieve full
+URL snapshots; ordinary output omits URLs used as default titles.
+
+Personal revisions live outside the checkout in `personal_data_dir`. A configured
+custom directory must already exist; unavailable storage never falls back to the
+default. To relocate it, close Desky, copy the whole directory, verify the copy,
+then edit device TOML. An explicit workspace UUID reconnects copied resources on
+another device; directory-only identity requires its original local association.
+`url --workspace <uuid>` addresses personal data without choosing a local checkout;
+omit it to include the current checkout's shared URLs in listings.
+
+For concurrent status edits, inspect `url list --all --json`, then explicitly use
+`url pin|unpin|archive|restore <id> --resolve` when all heads agree on URL/title.
+Resolution appends a revision citing every head. All original files remain.
+Malformed records, missing predecessors, differing URL/title or unknown schemas
+require recovery from backup/provider history; Desky never picks a timestamp
+winner or automatically deletes/rewrites conflicting data. Failure to enumerate
+the overall store still blocks entry because affected resources cannot be known.
 
 ## Recovery and verification limits
 
@@ -86,10 +114,15 @@ new config/journal files; unsupported filesystems fail without overwriting data.
 Approval corruption similarly preserves `trust.json`; inspect its `trust.json.bak`
 before restoring a known-good copy. Restoration never transfers another checkout's
 approval. An unfinished init must be recovered before entry can mutate device state.
+Saving in an unregistered directory persists identity before publishing its first
+URL. A failed URL write can leave that registration, but no entry count or trust;
+retrying retains the same identity. Clearing device state never deletes personal
+revisions; directory-only workspaces need their original association restored.
 
 Windows/amd64 verification includes concurrency/recovery, trust mutation, partial
 launches, state-write failures, real argument/CWD preservation and detached-child
 survival. The desktop smoke evidence and exact app versions are in
 [PILOT.md](PILOT.md). macOS/Linux CI verifies portable logic and explicit unsupported
 launch errors; it does not establish native desktop launch support. The next work
-is increment 3 in IMPLEMENTATION.md.
+is increment 4 in IMPLEMENTATION.md. Increment 3 conflict, picker and performance
+evidence is recorded in PILOT.md; measured latency is not a performance guarantee.

@@ -2,8 +2,8 @@
 
 Status: the first architecture/specification task is documented in
 [SPEC.md](SPEC.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md). Workspace metadata
-and Windows entry (increments 1-2) are implemented. Personal URL persistence and
-browser integration remain planned. Evidence appears below.
+and Windows entry, personal URL persistence and selection (increments 1-3) are
+implemented. Browser integration remains planned. Evidence appears below.
 
 Baseline: `97f7edb443fde605932fc08378e6021b403d50cd` contains the original README,
 product brief, and terminal namespace design. The policy is the v0.1 snapshot in
@@ -236,6 +236,57 @@ needed before treating this pilot as evidence for global adoption.
   canonicalizes both before excluding checkout executables, with a symlink-alias
   regression test. Linux/macOS gates and Linux race passed on the first run;
   the corrected Windows result is reported in the task output.
+
+### 2026-10-02: personal URLs and MRU selection increment 3
+
+- Task: complete increment 3 while keeping unaffected resources opening during
+  saved-URL conflicts and preserving conflicting data. Start:
+  `acbcdeb8a3ec1fb3f2cae42c5d7e14531c647df0`. End: the implementation commit
+  containing this entry on `feat/personal-urls`; final output records commit/push
+  and remote verification. Policy v0.1 remains unchanged; no global settings,
+  dependencies or CI changes. No agent delegation or product questions.
+- Delivered: numbered MRU picker with query filtering and terminal-only prompts;
+  personal URL add/list/pin/unpin/archive/restore; immutable revision history;
+  exact-ID resource seam; explicit multi-head resolution; shared/personal pin
+  deduplication and per-resource skipped results. SPEC explicitly replaces its
+  original whole-entry conflict barrier as requested. Unknown/incomplete/corrupt
+  per-resource data remains intact and visible; global enumeration failures still
+  fail explicitly. Resource ownership and verification are routed in internal/README.
+- Actual local checks: Go 1.27.0 on Windows/amd64; verification runner passed
+  formatting, vet, all tests and executable build. Resource tests cover concurrent
+  saves, status history, independent replica edits and union in different arrival
+  orders, multi-head resolution, differing same-ID copies, provider-renamed files,
+  missing parents, cycles, unknown schemas, malformed/duplicate JSON fields,
+  unavailable storage and injected write failures. CLI subprocess tests verify
+  fresh-process persistence, concurrent deduplication and safe output. Launch
+  tests verify healthy dispatch during conflicts, preservation of every personal
+  file, recency, pin deduplication and stable shared-recipe approval.
+- Interactive smoke: Windows terminal/ConPTY via tool PTY, isolated profile and
+  two disposable checkouts both named `Picker Demo`. Bare `desk --dry-run` showed
+  both numbered paths; typing `beta` filtered to one row and `1` selected exactly
+  that checkout, produced its plan/digest and exited. No application was dispatched.
+  Automated tests additionally exercise Enter for top item, invalid numbers,
+  filter clearing, cancellation, ambiguous names and JSON/redirected-input guards.
+  This is observed terminal interaction, not a new GUI launch qualification.
+- Performance: host `R-W11-MAIN`, Windows/amd64, AMD Ryzen 9 5900XT 16-Core,
+  Go 1.27.0. `go test ./internal/launch -run '^$' -bench BenchmarkLargeWorkspace
+  -benchtime=3x -count=1` measures local computation/filesystem access with 1,000
+  real checkout directories and 1,000 current pinned URL resources; process
+  startup, fixture creation and OS dispatch are excluded. Initial single-iteration
+  list/dry-run were 78.6/89.9 seconds. Reusing directory FileInfo in registry
+  validation reduced list to 142 ms; bounded parallel resource reads reduced dry
+  run from 2.18 seconds to 320 ms. Final three-iteration means: list 135 ms,
+  dry-run 320 ms. Both exceed the 100 ms aim; this is measured evidence, not a
+  guarantee. No daemon or persistent cache was added, and alias/conflict checks
+  remain enforced. Large externally synchronized histories may cost more.
+- Limits/coordination: local race execution was attempted and Go rejected it
+  because CGO is disabled; remote Linux race results are separate evidence.
+  The shared Go build-cache permission error was avoided with a repository-local
+  cache; build emitted a nonfatal module metadata cache-write warning. Git access
+  uses tool permission escalation under standing task-branch authorization.
+  No user-observation request was needed. Human review effort and runtime cost
+  were not independently measured. Native macOS/Linux desktop qualification stays
+  in increment 4.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No

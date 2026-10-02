@@ -36,6 +36,10 @@ func newID() (string, error) {
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
+
+// NewID allocates an identity for an immutable personal record.
+func NewID() (string, error)     { return newID() }
+func ValidID(id string) bool     { return uuidPattern.MatchString(id) && id == strings.ToLower(id) }
 func validName(name string) bool { return strings.TrimSpace(name) != "" }
 
 type Checkout struct {
@@ -74,6 +78,7 @@ type Info struct {
 	DeviceStateDir      string     `json:"device_state_dir"`
 	Resources           []Resource `json:"resources"`
 	Trust               string     `json:"trust"`
+	ResourceWarnings    []string   `json:"resource_warnings,omitempty"`
 }
 type ListedCheckout struct {
 	Checkout

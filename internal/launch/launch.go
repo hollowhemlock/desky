@@ -8,15 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/hollowhemlock/desky/internal/fileio"
 	"github.com/hollowhemlock/desky/internal/platform"
+	"github.com/hollowhemlock/desky/internal/resources"
 	"github.com/hollowhemlock/desky/internal/workspace"
 )
 
@@ -29,15 +28,18 @@ type Item struct {
 	platform.Action
 }
 type Plan struct {
-	Workspace workspace.Info `json:"workspace"`
-	Items     []Item         `json:"items"`
-	Digest    string         `json:"digest"`
-	Trusted   bool           `json:"trusted"`
+	Workspace workspace.Info       `json:"workspace"`
+	Items     []Item               `json:"items"`
+	Digest    string               `json:"digest"`
+	Trusted   bool                 `json:"trusted"`
+	Personal  []resources.Resource `json:"personal_resources"`
+	Skipped   []ItemResult         `json:"skipped"`
 }
 type ItemResult struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 	Error  string `json:"error,omitempty"`
+	Origin string `json:"origin,omitempty"`
 }
 type Result struct {
 	Plan         Plan         `json:"plan"`
@@ -54,6 +56,13 @@ func New(w *workspace.Service) *Service { return &Service{w, platform.Native{}} 
 // InspectTrust leaves metadata available when launch preflight cannot complete.
 func (s *Service) InspectTrust(i workspace.Info) workspace.Info {
 	p, err := s.build(i)
+	for _, r := range p.Personal {
+		if r.Problem != "" {
+			i.ResourceWarnings = append(i.ResourceWarnings, r.ID+": "+r.Problem)
+		} else if r.Status == "pinned" {
+			i.Resources = append(i.Resources, workspace.Resource{ID: r.ID, Type: "url", Origin: "personal", Name: &r.Title, URL: &r.URL})
+		}
+	}
 	if err != nil {
 		i.Trust = "not_evaluated: " + err.Error()
 		return i
@@ -76,41 +85,40 @@ func (s *Service) build(i workspace.Info) (Plan, error) {
 	if err != nil {
 		return p, err
 	}
-	if filepath.Clean(d.PersonalDataDir) != filepath.Clean(s.Workspace.Locations.PersonalDir) {
-		if st, e := os.Stat(d.PersonalDataDir); e != nil || !st.IsDir() {
-			return p, workspace.Failure(9, "personal_data_unavailable", "configured personal directory must be available before entry")
-		}
+	dir, err := s.Workspace.PersonalDirectory(i.RootPath)
+	if err != nil {
+		return p, err
 	}
-	// Personal resources are not implemented yet. Never silently ignore an existing
-	// personal workspace store created by another version of the application.
-	if i.WorkspaceID != "" {
-		if _, e := os.Stat(filepath.Join(d.PersonalDataDir, "workspaces", i.WorkspaceID)); e == nil {
-			return p, workspace.Failure(9, "unsupported_personal_data", "personal workspace resources require increment 3")
-		} else if !os.IsNotExist(e) {
-			return p, e
+	p.Personal, err = resources.Load(dir, i.WorkspaceID)
+	if err != nil {
+		return p, err
+	}
+	p.Skipped = []ItemResult{}
+	effective := append([]workspace.Resource{}, i.Resources...)
+	for _, r := range p.Personal {
+		if r.Problem != "" {
+			p.Skipped = append(p.Skipped, ItemResult{ID: r.ID, Origin: "personal", Status: "skipped", Error: r.Problem})
+		} else if r.Status == "pinned" {
+			effective = append(effective, workspace.Resource{ID: r.ID, Origin: "personal", Type: "url", URL: &r.URL, Name: &r.Title})
 		}
 	}
 	seenURLs := map[string]bool{}
-	for _, r := range i.Resources {
+	sharedItems := []Item{}
+	for _, r := range effective {
 		a := platform.Action{Type: r.Type, Directory: i.RootPath}
 		var profile workspace.Profile
 		switch r.Type {
 		case "url":
 			a.Target = *r.URL
 			a.Directory = s.Workspace.Locations.Home
-			u, _ := url.Parse(a.Target)
-			u.Scheme = strings.ToLower(u.Scheme)
-			u.Host = strings.ToLower(u.Host)
-			if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
-				u.Host = u.Hostname()
-				if strings.Contains(u.Host, ":") {
-					u.Host = "[" + u.Host + "]"
-				}
+			key, e := workspace.NormalizeURL(a.Target)
+			if e != nil {
+				return p, e
 			}
-			if seenURLs[u.String()] {
+			if seenURLs[key] {
 				continue
 			}
-			seenURLs[u.String()] = true
+			seenURLs[key] = true
 		case "editor", "terminal":
 			a.Target, err = filepath.EvalSymlinks(filepath.Join(i.RootPath, *r.Path))
 			if err != nil {
@@ -141,8 +149,14 @@ func (s *Service) build(i workspace.Info) (Plan, error) {
 			}
 		}
 		p.Items = append(p.Items, Item{r.ID, a})
+		if r.Origin != "personal" {
+			sharedItems = append(sharedItems, Item{r.ID, a})
+		}
 	}
 	if len(p.Items) == 0 {
+		if len(p.Skipped) > 0 {
+			return p, workspace.Failure(9, "resource_conflict", "all entry resources were skipped; preserve conflicting URL files")
+		}
 		return p, workspace.Failure(5, "nothing_to_open", "workspace has no entry resources")
 	}
 	// The trust record key binds the checkout UUID; the digest remains reproducible
@@ -154,7 +168,7 @@ func (s *Service) build(i workspace.Info) (Plan, error) {
 	data, _ := json.Marshal(struct {
 		Root, WorkspaceID string
 		Items             []Item
-	}{i.RootPath, id, p.Items})
+	}{i.RootPath, id, sharedItems})
 	h := sha256.Sum256(data)
 	p.Digest = hex.EncodeToString(h[:])
 	t, err := readTrust(s.Workspace.Locations.StateDir)
@@ -212,6 +226,10 @@ func (s *Service) Open(cwd string, r Request, approve func(Plan) bool) (Result, 
 		result.Plan = fresh
 		result.Plan.Trusted = true
 		result.Plan.Workspace.Trust = "approved"
+		result.Items = append(result.Items, fresh.Skipped...)
+		if len(fresh.Skipped) > 0 {
+			launchErr = workspace.Failure(9, "resource_conflict", "conflicting personal URLs were skipped; unaffected resources were attempted; preserve files and inspect url list --all")
+		}
 		anySuccess := false
 		for _, item := range fresh.Items {
 			entry := ItemResult{ID: item.ID, Status: "dispatched"}

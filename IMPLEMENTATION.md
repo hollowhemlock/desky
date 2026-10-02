@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: increments 1-2 are implemented; increments 3-4 remain **unimplemented**.
+Status: increments 1-3 are implemented; increment 4 remains **unimplemented**.
 [SPEC.md](SPEC.md) is authoritative for behavior and technical decisions.
 Do not scaffold the entire plan at once. Each increment should leave a usable,
 verified slice and update README navigation to its actual code and checks.
@@ -71,8 +71,8 @@ identity, preflight rejection, partial dispatch, recency write failures and
 concurrent entries. Native subprocess tests exercise Windows argument quoting,
 child CWD, disconnected handles and survival after parent exit. The desktop smoke
 and its user-observed result are recorded in PILOT.md. Native adapters on other
-platforms explicitly fail with exit 7. Existing personal workspace resources
-block entry until increment 3 can interpret them.
+platforms explicitly fail with exit 7. Personal workspace resources are now
+interpreted by increment 3 below.
 
 ## 3. Select recent projects and retain personal URLs
 
@@ -94,8 +94,10 @@ Acceptance:
   absent from the copied files. Directory-only identity does not merge by name.
 - Simulate two devices editing one resource independently. Union the revision
   files in different arrival orders: both versions survive, conflict is visible,
-  and entry blocks before dispatch. Explicit resolution creates a head referencing
-  both; equal final files yield equal state regardless of timestamps.
+  and entry skips affected URLs while opening unaffected resources. This replaces
+  the original whole-entry barrier per the increment 3 request. Explicit resolution
+  creates a head referencing both; equal final files yield equal state regardless
+  of timestamps.
 - Incomplete delivery, renamed conflict copies, unknown schema, disk-write errors
   and unavailable custom storage never silently reset or discard personal data.
   Clearing/recreating device state does not delete saved resources.
@@ -108,6 +110,14 @@ resources on a named machine; aim for under 100 ms for local computation excludi
 process startup, OS dispatch and slow externally synchronized storage. Report
 measurements, not an untested hard performance guarantee. If UX is slow, optimize
 measured work before adding a persistent service.
+
+Implemented in the resource domain, CLI picker and launch integration, routed
+through internal/README.md. Tests cover process restarts/concurrent saves, status
+history, replica union/resolution, invalid/incomplete records and provider conflict
+copies, custom storage, shared/personal deduplication, trust stability, partial
+entry and noninteractive selection/consent. Windows terminal smoke and measured
+1,000-checkout/1,000-URL latency are recorded in PILOT.md. Native launch adapters
+on other platforms remain increment 4; local race testing lacks enabled CGO.
 
 ## 4. Complete and qualify the platform boundary
 
@@ -183,6 +193,7 @@ acceptance and explicit native verification gates. No unanswered material produc
 choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
-**Next action:** implement increment 3 on a task branch containing the verified
-Windows launcher. Preserve checkout identity and launch consent while adding the
-MRU picker and personal URL revisions, conflicts and pin merging.
+**Next action:** increment 4 native platform qualification. Preserve identity,
+conflict isolation and consent contracts while adding and qualifying adapters on
+available native macOS/Linux desktop hosts. The performance aim remains a measured
+target, not a release claim; no persistent service has been introduced.

@@ -185,6 +185,23 @@ func validURL(raw string) bool {
 	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")) && u.Hostname() != "" && u.User == nil
 }
 
+// NormalizeURL validates intentional URL input without fetching it. Only scheme,
+// host case and default ports are normalized; query and fragment stay intact.
+func NormalizeURL(raw string) (string, error) {
+	if !validURL(raw) {
+		return "", Failure(5, "invalid_url", "URL must be absolute HTTP(S), with a host and no credentials or control characters")
+	}
+	u, _ := url.Parse(raw)
+	u.Scheme, u.Host = strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
+		u.Host = u.Hostname()
+		if strings.Contains(u.Host, ":") {
+			u.Host = "[" + u.Host + "]"
+		}
+	}
+	return u.String(), nil
+}
+
 func within(parent, child string) bool {
 	rel, err := filepath.Rel(parent, child)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)

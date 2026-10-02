@@ -13,26 +13,31 @@ import (
 	"unicode"
 
 	"github.com/hollowhemlock/desky/internal/launch"
+	"github.com/hollowhemlock/desky/internal/resources"
 	"github.com/hollowhemlock/desky/internal/workspace"
 )
 
 const help = `Desky Windows workspace launcher
 
 Usage:
+  desk
   desk <selector> [--dry-run] [--trust <digest>] [--json]
   desk open <selector> [--accept-identity-change] [--dry-run] [--trust <digest>] [--json]
   desk open --workspace <uuid> [--checkout <path>] [--dry-run] [--trust <digest>] [--json]
   desk init [--name <name>] [--json]
   desk info [<selector>] [--json]
   desk list [--json]
+  desk url add <url> [--title <text>] [--pin] [--workspace <uuid>] [--json]
+  desk url list [--all] [--workspace <uuid>] [--json]
+  desk url pin|unpin|archive|restore <id> [--resolve] [--workspace <uuid>] [--json]
   desk config path [--json]
   desk config get <personal_data_dir|launchers|apps> [--json]
   desk --help
   desk --version
 
 Selectors: directory, exact workspace UUID or exact name. Use -- before a
-selector beginning with '-'. Ambiguous/fuzzy selections fail explicitly.
-Windows entry opens the shared recipe. URL saving and the recent picker are not implemented.
+selector beginning with '-'. Interactive ambiguity uses a numbered, filterable picker.
+Windows entry opens shared resources and healthy personal pins; conflicting URLs are skipped.
 `
 
 type envelope struct {
@@ -46,6 +51,8 @@ type options struct {
 	json, help, version bool
 	name                *string
 	words               []string
+	title               *string
+	pin, all, resolve   bool
 }
 
 func parse(args []string) (options, error) {
@@ -72,11 +79,17 @@ func parse(args []string) (options, error) {
 		}
 		seen[key] = true
 		switch key {
-		case "--json", "--help", "--version", "--dry-run", "--accept-identity-change":
+		case "--json", "--help", "--version", "--dry-run", "--accept-identity-change", "--pin", "--all", "--resolve":
 			if eq {
 				return p, workspace.Failure(2, "usage", key+" does not take a value")
 			}
 			switch key {
+			case "--pin":
+				p.pin = true
+			case "--all":
+				p.all = true
+			case "--resolve":
+				p.resolve = true
 			case "--dry-run":
 				p.entry.DryRun = true
 			case "--accept-identity-change":
@@ -88,7 +101,7 @@ func parse(args []string) (options, error) {
 			case "--version":
 				p.version = true
 			}
-		case "--name", "--trust", "--workspace", "--checkout":
+		case "--name", "--trust", "--workspace", "--checkout", "--title":
 			if !eq {
 				i++
 				if i >= len(args) || strings.HasPrefix(args[i], "--") {
@@ -100,6 +113,8 @@ func parse(args []string) (options, error) {
 				return p, workspace.Failure(2, "usage", key+" must not be empty")
 			}
 			switch key {
+			case "--title":
+				p.title = &value
 			case "--name":
 				p.name = &value
 			case "--trust":
@@ -134,6 +149,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 }
 
 func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), locations func() (workspace.Locations, error)) int {
+	return runInteractive(args, stdout, stderr, cwd, locations, os.Stdin, consoleInput())
+}
+
+func runInteractive(args []string, stdout, stderr io.Writer, cwd func() (string, error), locations func() (workspace.Locations, error), input io.Reader, interactive bool) int {
 	p, err := parse(args)
 	jsonMode := wantsJSON(args)
 	if err != nil {
@@ -145,32 +164,42 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 	if p.version {
 		return render("desk 0.1.0-dev (Windows launcher)", nil, jsonMode, stdout, stderr)
 	}
-	if len(p.words) == 0 {
-		return render(nil, workspace.Failure(2, "not_implemented", "workspace picker is not implemented; use desk init, info or list"), jsonMode, stdout, stderr)
+	bare := len(p.words) == 0
+	if bare {
+		p.words = []string{"pick"}
 	}
 	command := p.words[0]
-	if command == "url" || command == "run" || command == "recent" || command == "find" || command == "resource" || command == "browser" || command == "session" || command == "-" {
+	if command == "run" || command == "recent" || command == "find" || command == "resource" || command == "browser" || command == "session" || command == "-" {
 		return render(nil, workspace.Failure(2, "not_implemented", "this command is not implemented; use --help"), jsonMode, stdout, stderr)
 	}
-	if command != "init" && command != "info" && command != "list" && command != "config" && command != "open" {
+	if command != "init" && command != "info" && command != "list" && command != "config" && command != "open" && command != "url" && !bare {
 		p.words = append([]string{"open"}, p.words...)
 		command = "open"
 	}
-	if command != "open" && (p.entry != launch.Request{}) {
+	entryOptions := p.entry
+	if command == "url" {
+		entryOptions.WorkspaceID = ""
+	}
+	if command != "open" && command != "pick" && (entryOptions != launch.Request{}) {
 		return render(nil, workspace.Failure(2, "usage", "entry options apply only to open"), jsonMode, stdout, stderr)
 	}
 	if p.name != nil && command != "init" {
 		return render(nil, workspace.Failure(2, "usage", "--name is only valid for init"), jsonMode, stdout, stderr)
+	}
+	if command != "url" && (p.title != nil || p.pin || p.all || p.resolve) {
+		return render(nil, workspace.Failure(2, "usage", "URL options apply only to url commands"), jsonMode, stdout, stderr)
 	}
 	l, err := locations()
 	if err != nil {
 		return render(nil, err, jsonMode, stdout, stderr)
 	}
 	s := workspace.New(l)
+	reader := bufio.NewReader(input)
+	interactive = interactive && !jsonMode
 	var data any
 	usage := func() error { return workspace.Failure(2, "usage", "invalid arguments; use desk --help") }
 	switch command {
-	case "open":
+	case "open", "pick":
 		if len(p.words) > 2 {
 			err = usage()
 			break
@@ -183,13 +212,30 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 		if err != nil {
 			break
 		}
+		if command == "pick" {
+			if p.entry.WorkspaceID != "" || p.entry.Checkout != "" || p.entry.AcceptIdentityChange {
+				err = usage()
+				break
+			}
+			p.entry.Selector, err = pick(s, reader, stderr, interactive, nil)
+		} else {
+			_, err = s.ResolveEntry(dir, p.entry.Selector, p.entry.WorkspaceID, p.entry.Checkout, p.entry.AcceptIdentityChange)
+			var e *workspace.Error
+			if interactive && errors.As(err, &e) && e.Exit == 4 {
+				p.entry.Selector, err = pick(s, reader, stderr, true, e.Details)
+				p.entry.WorkspaceID, p.entry.Checkout = "", ""
+			}
+		}
+		if err != nil {
+			break
+		}
 		var consent func(launch.Plan) bool
-		if !jsonMode && consoleInput() {
+		if interactive {
 			consent = func(plan launch.Plan) bool {
 				b, _ := json.MarshalIndent(plan, "", "  ")
 				fmt.Fprintln(stderr, safeJSON(b))
 				fmt.Fprint(stderr, "Approve this checkout and launch recipe? [y/N] ")
-				line, e := bufio.NewReader(os.Stdin).ReadString('\n')
+				line, e := reader.ReadString('\n')
 				return e == nil && strings.EqualFold(strings.TrimSpace(line), "y")
 			}
 		}
@@ -201,6 +247,12 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 			if errors.As(err, &e) && result.Plan.Workspace.RootPath != "" {
 				e.Details = result
 			}
+		}
+	case "url":
+		var dir string
+		dir, err = cwd()
+		if err == nil {
+			data, err = urlCommand(resources.New(s), dir, p)
 		}
 	case "init", "info":
 		if (command == "init" && len(p.words) != 1) || (command == "info" && len(p.words) > 2) {
@@ -230,6 +282,13 @@ func run(args []string, stdout, stderr io.Writer, cwd func() (string, error), lo
 			}
 			var info workspace.Info
 			info, err = s.Info(dir, selector)
+			var e *workspace.Error
+			if interactive && errors.As(err, &e) && e.Exit == 4 {
+				selector, err = pick(s, reader, stderr, true, e.Details)
+				if err == nil {
+					info, err = s.Info(dir, selector)
+				}
+			}
 			if err == nil {
 				info = launch.New(s).InspectTrust(info)
 			}
@@ -272,7 +331,14 @@ func render(data any, err error, jsonMode bool, stdout, stderr io.Writer) int {
 	}
 	if result.Error != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", safe(result.Error.Code), safe(result.Error.Message))
-		if result.Error.Details != nil {
+		if entry, ok := result.Error.Details.(launch.Result); ok && len(entry.Items) > 0 {
+			for _, item := range entry.Items {
+				fmt.Fprintf(stderr, "%s: %s %s\n", safe(item.ID), safe(item.Status), safe(item.Error))
+			}
+			if entry.StateWarning != "" {
+				fmt.Fprintln(stderr, safe(entry.StateWarning))
+			}
+		} else if result.Error.Details != nil {
 			b, _ := json.Marshal(result.Error.Details)
 			fmt.Fprintln(stderr, safe(string(b)))
 		}
@@ -312,7 +378,24 @@ func render(data any, err error, jsonMode bool, stdout, stderr io.Writer) int {
 			}
 			fmt.Fprintf(&b, "  %s (%s, %s)\n", safe(label), r.Type, r.Origin)
 		}
+		for _, warning := range d.ResourceWarnings {
+			fmt.Fprintf(&b, "Warning: %s\n", safe(warning))
+		}
 		output = b.String()
+	case []resources.Resource:
+		var b strings.Builder
+		for _, item := range d {
+			fmt.Fprintf(&b, "%s\t%s\t%s\t%s\n", safe(item.ID), safe(item.Origin), safe(item.Status), resourceLabel(item))
+			if item.Problem != "" {
+				fmt.Fprintf(&b, "  %s\n", safe(item.Problem))
+			}
+		}
+		if len(d) == 0 {
+			b.WriteString("No saved URLs. Use desk url add <url>.\n")
+		}
+		output = b.String()
+	case resources.Resource:
+		output = fmt.Sprintf("%s: %s (%s)\n", safe(d.ID), resourceLabel(d), safe(d.Status))
 	case []workspace.ListedCheckout:
 		var b strings.Builder
 		for _, item := range d {

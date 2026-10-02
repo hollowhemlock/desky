@@ -65,6 +65,11 @@ func (s store) read() (registry, error) {
 		return r, stateError(fmt.Errorf("unsupported registry schema"))
 	}
 	ids := map[string]bool{}
+	paths := map[string]bool{}
+	// Keep FileInfo objects for this read: os.SameFile lazily caches native file
+	// identities on Windows. Re-statting every pair makes a 1,000-entry picker
+	// perform roughly a million filesystem reads.
+	stats := make([]os.FileInfo, 0, len(r.Checkouts))
 	for i, c := range r.Checkouts {
 		if err := validateCheckout(c); err != nil {
 			return r, stateError(err)
@@ -73,11 +78,18 @@ func (s store) read() (registry, error) {
 			return r, stateError(fmt.Errorf("duplicate checkout ID"))
 		}
 		ids[c.CheckoutID] = true
-		for _, prior := range r.Checkouts[:i] {
-			if sameDirectory(prior.RootPath, c.RootPath) {
+		path := filepath.Clean(c.RootPath)
+		if paths[path] {
+			return r, stateError(fmt.Errorf("duplicate checkout path"))
+		}
+		paths[path] = true
+		st, _ := os.Stat(c.RootPath)
+		for _, prior := range stats[:i] {
+			if st != nil && prior != nil && os.SameFile(prior, st) {
 				return r, stateError(fmt.Errorf("duplicate checkout path"))
 			}
 		}
+		stats = append(stats, st)
 	}
 	return r, nil
 }
