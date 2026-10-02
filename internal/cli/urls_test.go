@@ -66,18 +66,20 @@ func TestURLSubprocessPersistenceAndConcurrency(t *testing.T) {
 func TestPickerQueriesNumbersAndNoninteractive(t *testing.T) {
 	root, l := cliFixture(t)
 	w := workspace.New(l)
-	_, err := w.Init(root, "same")
+	first, err := w.Init(root, "same")
 	if err != nil {
 		t.Fatal(err)
 	}
+	root = first.RootPath
 	second := filepath.Join(filepath.Dir(root), "second")
 	if err := os.Mkdir(second, 0700); err != nil {
 		t.Fatal(err)
 	}
-	_, err = w.Init(second, "same")
+	other, err := w.Init(second, "same")
 	if err != nil {
 		t.Fatal(err)
 	}
+	second = other.RootPath
 	// Recency is owned by workspace, tested through its actual entry transaction.
 	i, _ := w.Info(second, ".")
 	if err := w.VisitEntry(i, func(workspace.Info) bool { return true }); err != nil {

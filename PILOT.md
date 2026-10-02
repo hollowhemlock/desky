@@ -287,6 +287,10 @@ needed before treating this pilot as evidence for global adoption.
   No user-observation request was needed. Human review effort and runtime cost
   were not independently measured. Native macOS/Linux desktop qualification stays
   in increment 4.
+- Initial remote CI passed Linux verification and the race check. Windows/macOS
+  exposed a picker test comparing canonical selected paths with temporary-directory
+  aliases. The fixture now uses the registered canonical paths, preserving the
+  exact selection assertion. Final remote results are reported in task output.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
