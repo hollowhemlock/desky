@@ -397,14 +397,62 @@ needed before treating this pilot as evidence for global adoption.
   Datacenter / amd64. All three native verification suites passed; Linux also
   passed the race detector and all six cross-builds. These are native helper,
   filesystem and domain test results. Nonverbose suite output does not establish
-  whether optional desktop fixtures were skipped. No new desktop GUI smoke result
-  is claimed; the remaining release gates below keep increment 4 visibly open.
+  whether optional desktop fixtures were skipped. The documentation follow-up
+  `c3545c2` also passed all three jobs in
+  [run 37116037278](https://github.com/hollowhemlock/desky/actions/runs/37116037278).
+  The remaining release gates below keep increment 4 visibly open.
+
+#### Windows desktop follow-up, 2026-10-03
+
+- Host: Windows 11 build 26200 / amd64; VS Code 1.140.0, Windows Terminal package
+  1.24.11911.0, Firefox 157.0, Notepad package 11.2607.14.0. The native Notepad
+  launcher reports file version 10.0.26100.8457. The existing Windows Computer Use
+  skill supplied application/window discovery and accessibility inspection.
+- Fixture: `.cache/platform-smoke-20261003`, with a separate local device/personal
+  directory and checkout named `-Desky increment 4 雪 & spaces; punctuation`.
+  Recipe: native Code with `--new-window`, default Terminal, an intentional
+  `https://example.com/#desky-increment-4-smoke` URL, and named app profile
+  `smoke-notepad` opening the disposable `Desky increment 4.txt` document.
+  Dry run displayed all four actions and did not dispatch. The actual console
+  consent prompt accepted `y` and completed without hanging.
+- Restricted-context entry produced real native failures: Terminal's WindowsApps
+  alias returned "The file cannot be accessed by the system"; URL dispatch returned
+  "No application is associated with the specified file for this operation".
+  Desky reported `launch_failure`, attempted the independent Notepad action after
+  the URL failure, and retained every result. Editor/Notepad process creation was
+  acknowledged, but no fixture windows appeared in that context. This demonstrates
+  why dispatched does not promise GUI readiness; no successful GUI behavior is
+  inferred from those two process-creation acknowledgements.
+- After inspecting those results and the desktop, an authorized run outside the
+  restricted context reused the same approval. All four actions dispatched and
+  returned control in approximately two seconds. Parent CWD was unchanged.
+  Readback shows the same checkout/workspace IDs, approved trust and entry count 2
+  (one partial entry and one fully dispatched entry). Device state contains only
+  registry, backup, lock and trust files; no process ownership/teardown state.
+- Subsequent desktop observation, after the CLI had exited, found the selected
+  checkout in the Code window title, `Example Domain` in Firefox's window title,
+  and the fixture document in Notepad. Notepad accessibility inspection verified
+  the exact disposable document contents. Code accessibility inspection confirmed
+  the checkout window; an existing extension reported a missing-ripgrep warning,
+  which was left unchanged. These observations establish editor/named-app window
+  survival after CLI exit, with browser evidence limited to its window title.
+- Computer Use then explicitly stopped because URL-policy enforcement was not
+  supported for this Windows browser. No browser-policy workaround was attempted.
+  The skill also excludes terminal-app automation. The new terminal's visible CWD,
+  browser page contents, and fully observed repeat-open behavior therefore still
+  need human observation or an available supported inspection path. The earlier
+  increment 2 user-confirmed smoke remains separate evidence, not a claim that
+  these post-change checks were completed.
+- The user confirmed no native macOS/Linux desktop hosts are currently available.
+  Setup guidance was provided for an Ubuntu Desktop VM and a physical Mac with a
+  logged-in desktop. No VM, host, software installation or remote access was
+  provisioned. Native CI is complete; those desktop release gates remain open.
 
 Actual desktop matrix and outstanding qualification:
 
 | Host | Desktop evidence | Remaining gate |
 |---|---|---|
-| Windows 11 build 26200 / amd64 | Increment 2: VS Code 1.139.1, Windows Terminal package 1.24.11911.0, Firefox 157.0; user-confirmed first editor/terminal/URL entry, repeat/default dispatch and window-title evidence | Named desktop app and full post-increment-4 visible interaction check; real noninteractive-station fixture was denied on this host; native URL-service failure still needs controlled qualification |
+| Windows 11 build 26200 / amd64 | Increment 2 user-confirmed smoke; increment 4 follow-up above adds actual consent, four-resource dispatch, native failure reporting, and editor/Notepad window survival and document inspection | Post-change visible terminal CWD, browser contents and fully observed repeat-open; real noninteractive-station fixture was denied on this host |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
 | Linux / architecture not yet exercised on a desktop | No desktop host available in this task | Exact distro/session/architecture/app versions; editor, configured terminal, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
 
