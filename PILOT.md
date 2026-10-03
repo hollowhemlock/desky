@@ -391,9 +391,14 @@ needed before treating this pilot as evidence for global adoption.
   were not awaited, and Windows lacked session preflight. All were repaired with
   regression coverage. The implementing agent owns validation and final inspection;
   the commit-review-loop skill was used without changing personal skills.
-- Remote native CI results belong to the pushed revision, not cross-compilation;
-  final task output records its run and outcome. No new desktop GUI smoke result
-  is claimed. The remaining release gates below keep increment 4 visibly open.
+- Remote native CI: [run 37115845024](https://github.com/hollowhemlock/desky/actions/runs/37115845024)
+  passed for implementation commit `4c0acbc`, using Go 1.27.0 on Ubuntu 24.04.5 LTS
+  / amd64, macOS 26.6.2 (25G83) / arm64, and Windows Server 2025 (10.0.26100)
+  Datacenter / amd64. All three native verification suites passed; Linux also
+  passed the race detector and all six cross-builds. These are native helper,
+  filesystem and domain test results. Nonverbose suite output does not establish
+  whether optional desktop fixtures were skipped. No new desktop GUI smoke result
+  is claimed; the remaining release gates below keep increment 4 visibly open.
 
 Actual desktop matrix and outstanding qualification:
 
