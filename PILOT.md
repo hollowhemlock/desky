@@ -3,7 +3,8 @@
 Status: the first architecture/specification task is documented in
 [SPEC.md](SPEC.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md). Workspace metadata
 and Windows entry, personal URL persistence and selection (increments 1-3) are
-implemented. Browser integration remains planned. Evidence appears below.
+implemented. Increment 4 adapters are implemented with native desktop qualification
+still open. Browser integration remains planned. Evidence appears below.
 
 Baseline: `97f7edb443fde605932fc08378e6021b403d50cd` contains the original README,
 product brief, and terminal namespace design. The current policy is the v0.2
@@ -347,6 +348,69 @@ needed before treating this pilot as evidence for global adoption.
   and integration paths. No product clarification or routine approval questions;
   Git/network sandbox escalations are separate tool permissions. Review used the
   personal commit-review-loop skill and one reviewer; no skill files were changed.
+
+### 2026-10-03: increment 4 platform implementation and qualification gates
+
+- Task: continue the next unfinished increment, implementing remaining native
+  adapters and qualification checks. Policy v0.2 unchanged. Start: `4e6bd8f`,
+  clean working tree. Task branch: `feat/native-platform-boundary`; the commit
+  containing this entry records implementation. No installer, deployment,
+  publication, merge, dependency or global configuration change.
+- Implemented macOS/Linux executable lookup, explicit profiles and URL helpers;
+  macOS Terminal default; required Linux terminal profile; new Unix process
+  sessions and disconnected handles. Default Unix Code, open and xdg-open helpers
+  have bounded dispatch waits. A timeout reports unknown outcome without killing
+  children; completed children are reaped while the CLI remains alive.
+- Native preflight rejects remote-session environment markers and detected
+  headless sessions. Windows queries visible window-station flags, macOS checks
+  local console ownership, Linux checks display environment. These detect session
+  prerequisites rather than application health. Inspection and personal URL
+  saving remain available in rejected launch sessions.
+- The existing Unix flock/rename/fsync/hard-link persistence boundary needed no
+  format or algorithm change. Existing concurrency, restart, conflict-preservation,
+  recovery and storage-boundary tests remain native CI gates. Added Unix private
+  directory/file/lock permission checks. Shared process tests now run on each OS,
+  proving exact argv/CWD, no shell fallback, child survival and detached output
+  handles. Fixture URL helpers exercise nonzero status, single URL argument and
+  neutral home CWD; deadline tests prove a late helper can still finish.
+- Local verification: Go 1.27.0, Windows 11 build 26200, amd64. Focused platform,
+  CLI, fileio and launch tests passed; full formatting/vet/test/build gate passed.
+  Cross-builds succeeded for Windows/macOS/Linux on amd64 and arm64. Unix test
+  binaries were also compiled locally; none were executed as native tests here.
+  The runner now exposes `-cross`; CI runs native suites on all three OSes and
+  combines Linux race/cross checks in the same verification entry point.
+- Local limits: race execution is unavailable because CGO is disabled. Builds
+  report a nonfatal module metadata cache-write permission warning. The separate
+  noninteractive Windows window-station fixture requires host privileges that
+  were unavailable even outside the sandbox; that test explicitly skips on access
+  denied. Invalid-station, simulated headless and SSH rejection checks still run.
+  CLI dispatch subprocess tests require a visible Windows station; direct native
+  child-process contracts run independently of GUI session availability.
+- Completion review: a fresh reviewer found checkout-owned PATH directories
+  linking to external launchers were accepted, default Unix Code helper failures
+  were not awaited, and Windows lacked session preflight. All were repaired with
+  regression coverage. The implementing agent owns validation and final inspection;
+  the commit-review-loop skill was used without changing personal skills.
+- Remote native CI results belong to the pushed revision, not cross-compilation;
+  final task output records its run and outcome. No new desktop GUI smoke result
+  is claimed. The remaining release gates below keep increment 4 visibly open.
+
+Actual desktop matrix and outstanding qualification:
+
+| Host | Desktop evidence | Remaining gate |
+|---|---|---|
+| Windows 11 build 26200 / amd64 | Increment 2: VS Code 1.139.1, Windows Terminal package 1.24.11911.0, Firefox 157.0; user-confirmed first editor/terminal/URL entry, repeat/default dispatch and window-title evidence | Named desktop app and full post-increment-4 visible interaction check; real noninteractive-station fixture was denied on this host; native URL-service failure still needs controlled qualification |
+| macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
+| Linux / architecture not yet exercised on a desktop | No desktop host available in this task | Exact distro/session/architecture/app versions; editor, configured terminal, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
+
+On each newly available desktop, use isolated device/personal storage and a
+disposable checkout with spaces and shell metacharacters. Record actual visible
+directory/application behavior, prompt completion and repeat entry, parent CWD,
+control returning promptly and survival after CLI exit. Run the native verification
+runner, including recovery/concurrency/privacy tests, and record native launcher,
+URL failure and absent-session outcomes. Do not substitute helper receipts or a
+successful build for GUI observation. Public support/distribution remains a
+separate decision and authorization.
 
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No

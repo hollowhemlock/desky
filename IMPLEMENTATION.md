@@ -1,6 +1,7 @@
 # Implementation plan
 
-Status: increments 1-3 are implemented; increment 4 remains **unimplemented**.
+Status: increments 1-3 are implemented. Increment 4 adapters and automated checks
+are implemented; native desktop qualification remains **open** (matrix in PILOT.md).
 [SPEC.md](SPEC.md) is authoritative for behavior and technical decisions.
 Do not scaffold the entire plan at once. Each increment should leave a usable,
 verified slice and update README navigation to its actual code and checks.
@@ -147,6 +148,22 @@ gate open. Automate host-independent checks in CI when implementation begins;
 desktop interaction may remain an explicit release check. Public release also
 requires a separate branding/support/distribution decision and authorization.
 
+Implementation: macOS/Linux adapters resolve native profiles and trusted default
+launchers, reject detected unsupported sessions, dispatch URL helpers with a
+bounded wait, and detach direct children without shell evaluation or teardown.
+Linux requires an explicit terminal profile. Shared native process tests cover
+argument/CWD preservation, parent exit, disconnected output handles, helper failure
+and timeout survival. Unix tests cover safe lookup, shebang execution, URL failure,
+session rejection and private file permissions. Existing native flock/rename/fsync
+and hard-link publication remain the persistence implementation; recovery,
+concurrent registry/resource and privacy tests run on each CI host.
+
+The runner's `-cross` option builds Windows/macOS/Linux for amd64 and arm64;
+Linux CI also runs the race detector. These are executable verification gates,
+not a desktop support claim. See PILOT.md for actual check results and the exact
+desktop matrix. Complete the remaining native desktop smoke checks before marking
+this increment fully qualified; no installer or release publication is included.
+
 ## Verification and completion discipline
 
 Start with affected Go package tests; the full gate is now maintained by
@@ -193,7 +210,8 @@ acceptance and explicit native verification gates. No unanswered material produc
 choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
-**Next action:** increment 4 native platform qualification. Preserve identity,
-conflict isolation and consent contracts while adding and qualifying adapters on
-available native macOS/Linux desktop hosts. The performance aim remains a measured
+**Next action:** finish increment 4 desktop qualification on native macOS/Linux
+hosts and the remaining Windows desktop cases listed in PILOT.md. Preserve
+identity, conflict isolation and consent contracts while recording observed
+application behavior and exact OS/app versions. The performance aim remains a measured
 target, not a release claim; no persistent service has been introduced.

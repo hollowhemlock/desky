@@ -3,10 +3,11 @@
 A cross-platform project-context launcher for fast re-entry into a working
 directory and its editor, terminal, applications, and saved web resources.
 
-Current state: increments 1-3 are available. The Go CLI selects recent projects,
-retains personal URLs, and opens editor, terminal, named application and URL
-resources on Windows after recipe approval. Native launch adapters for
-macOS/Linux remain planned.
+Current state: increments 1-3 and increment 4's native adapters are implemented.
+The Go CLI selects recent projects, retains personal URLs, and requests editor,
+terminal, named application and URL launches after recipe approval. Windows has
+desktop smoke evidence; macOS/Linux desktop qualification remains open. The
+exact verification matrix and outstanding release gates are in [PILOT.md](PILOT.md).
 
 ## Start here
 
@@ -32,7 +33,9 @@ From this repository, run `go run ./tools/verify`. The
 [verification runner](tools/verify/main.go) checks formatting, vets and tests the
 module, then builds `bin/desk.exe` on Windows or `bin/desk` on macOS/Linux. It is
 also used by [CI](.github/workflows/verify.yml). With a supported C toolchain,
-`go run ./tools/verify -race` additionally runs the race detector. Dependencies
+`go run ./tools/verify -race` additionally runs the race detector. Add `-cross`
+to compile all three OS targets for amd64 and arm64; this checks compilation,
+not native launch behavior. Dependencies
 are pinned in go.mod/go.sum; the first run may need network access to download them.
 
 Run the resulting executable with `--help` for the implemented command catalog,
@@ -62,6 +65,20 @@ launcher profile requires new approval. Neither dry run nor info writes state.
 The default editor is native VS Code; the default terminal is Windows Terminal.
 Configure absolute native `.exe` paths in device TOML when defaults are unavailable.
 Shared HTTP(S) URLs use the default browser. See SPEC for profile schemas.
+
+The macOS/Linux adapters use `code --reuse-window` from an absolute PATH entry
+outside the checkout by default. macOS uses `/usr/bin/open` for URLs and Terminal;
+Linux uses `xdg-open` for URLs and requires a configured `launchers.terminal`
+profile with the terminal's own directory flag and one `{path}` argument. Unix
+profiles may use executable shebang scripts. Helpers have a five-second dispatch
+deadline; timeout means the outcome is unknown and never kills the application.
+The default Unix `code` launcher is also awaited as a dispatch helper. Use native
+launching only in a local desktop session. Preflight rejects SSH, WSL and detected
+headless sessions; metadata and URL saving still work there. Windows requires a
+visible process window station.
+Display/session detection does not prove that a GUI service or application is
+healthy. macOS Terminal directory behavior and Linux desktop behavior still need
+the native smoke checks described in IMPLEMENTATION.md before support is claimed.
 
 Entry reports dispatch, not GUI readiness or process ownership. It attempts
 remaining resources after a runtime failure and reports all results. A state-write
@@ -127,10 +144,11 @@ already-published matching URL. If cleanup fails or the process stops before it
 runs, the remaining directory is still diagnosed as incomplete; preserve it and
 inspect backup/provider history rather than deleting potentially incoming data.
 
-Windows/amd64 verification includes concurrency/recovery, trust mutation, partial
-launches, state-write failures, real argument/CWD preservation and detached-child
-survival. The desktop smoke evidence and exact app versions are in
-[PILOT.md](PILOT.md). macOS/Linux CI verifies portable logic and explicit unsupported
-launch errors; it does not establish native desktop launch support. The next work
-is increment 4 in IMPLEMENTATION.md. Increment 3 conflict, picker and performance
-evidence is recorded in PILOT.md; measured latency is not a performance guarantee.
+The verification suite covers concurrency/recovery, trust mutation, partial
+launches, state-write failures, real argument/CWD preservation, detached-child
+survival and dispatch-helper timeouts. Native CI runs it on Windows, macOS and
+Linux, including Unix lookup/session/URL-helper tests and private file permissions.
+Helper tests do not establish native desktop launch support. The desktop smoke
+evidence, exact app versions and remaining increment 4 qualification work are in
+[PILOT.md](PILOT.md). Increment 3 conflict, picker and performance evidence is also
+recorded there; measured latency is not a performance guarantee.

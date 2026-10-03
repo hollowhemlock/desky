@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/hollowhemlock/desky/internal/launch"
+	"github.com/hollowhemlock/desky/internal/platform"
+	"github.com/hollowhemlock/desky/internal/workspace"
 )
 
 func TestLaunchReceipt(t *testing.T) {
@@ -35,6 +37,12 @@ func TestLaunchReceipt(t *testing.T) {
 func TestEntryAcrossCLIProcesses(t *testing.T) {
 	root, l := cliFixture(t)
 	exe, _ := os.Executable()
+	if _, _, err := (platform.Native{}).Resolve("editor", workspace.Profile{Executable: exe}, root); err != nil {
+		if e, ok := err.(*workspace.Error); ok && e.Code == "unsupported_action" {
+			t.Skipf("native desktop preflight unavailable (process contracts run separately): %v", err)
+		}
+		t.Fatal(err)
+	}
 	receipt := filepath.Join(l.Home, "receipt")
 	if err := os.MkdirAll(filepath.Dir(l.ConfigFile), 0700); err != nil {
 		t.Fatal(err)

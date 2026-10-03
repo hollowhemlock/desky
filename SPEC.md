@@ -2,7 +2,8 @@
 
 Status: selected first-release contracts; workspace metadata, Windows entry,
 personal URL persistence and selection UI (increments 1-3) are implemented.
-Native launch adapters for other platforms remain planned.
+Native macOS/Linux adapters are implemented; their desktop qualification remains
+open. PILOT.md records the exercised platform matrix and release gates.
 [README.md](README.md) describes the working surface. [plan.md](plan.md) owns product boundaries;
 [namespace.md](namespace.md) supplies CLI intent and provisional examples. This
 document owns the concrete first-release contract. [IMPLEMENTATION.md](IMPLEMENTATION.md)
@@ -483,6 +484,16 @@ verify its detachment semantics. Bound dispatch-helper waits (five seconds),
 report timeout as outcome unknown, and do not automatically retry or terminate a
 possibly opened application. Reuse/focus follows application behavior; duplicate
 terminal windows or tabs are possible. No PID/window tracking and no `isOpen`.
+Unix direct children start a new session with standard handles mapped to
+`/dev/null`. While the CLI is alive it reaps completed children, including helpers
+that finish after timeout; CLI exit does not terminate them. URL helper arguments
+contain only the validated URL and run from the configured home directory.
+Linux preflight requires DISPLAY or WAYLAND_DISPLAY. macOS requires a non-root
+user owning `/dev/console`; Windows requires a visible process window station
+(`GetUserObjectInformationW`, `UOI_FLAGS`/`WSF_VISIBLE`). All three reject
+SSH_CONNECTION, SSH_TTY, WSL_DISTRO_NAME and WSL_INTEROP. These checks detect unsupported sessions, not GUI
+health; stale display variables or unavailable desktop services may still lead to
+dispatch failure or timeout. Inspection and saving remain available.
 The parent shell's directory never changes. WSL/SSH/headless sessions and Windows
 UNC/network checkouts are outside initial launch guarantees; unsupported actions
 fail clearly, while inspection and URL storage should still work.

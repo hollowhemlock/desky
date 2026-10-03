@@ -6,7 +6,7 @@ permissions:
   contents: read
 
 jobs:
-  metadata:
+  native:
     strategy:
       fail-fast: false
       matrix:
@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: go run ./tools/verify
+      - if: runner.os != 'Linux'
+        run: go run ./tools/verify
       - if: runner.os == 'Linux'
-        run: go test -race ./...
+        run: go run ./tools/verify -race -cross

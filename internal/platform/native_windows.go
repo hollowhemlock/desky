@@ -15,6 +15,13 @@ import (
 )
 
 func (Native) Resolve(kind string, p workspace.Profile, root string) (workspace.Profile, bool, error) {
+	if err := requireDesktop(desktopSession); err != nil {
+		return p, false, err
+	}
+	return resolveWindows(kind, p, root)
+}
+
+func resolveWindows(kind string, p workspace.Profile, root string) (workspace.Profile, bool, error) {
 	if strings.HasPrefix(root, `\\`) {
 		return p, false, workspace.Failure(7, "unsupported_action", "network checkout launching is not supported")
 	}
@@ -126,18 +133,5 @@ func (Native) Dispatch(a Action) error {
 	cmd := exec.Command(a.Executable, a.Args...)
 	cmd.Dir = a.Directory
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	if !a.Wait {
-		return cmd.Process.Release()
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		return err
-	case <-time.After(5 * time.Second):
-		return fmt.Errorf("dispatch helper timed out; outcome unknown, do not retry automatically")
-	}
+	return dispatchProcess(cmd, a.Wait, 5*time.Second)
 }

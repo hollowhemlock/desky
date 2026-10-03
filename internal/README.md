@@ -2,7 +2,8 @@
 
 Read the affected contracts in [SPEC.md](../SPEC.md) before changing behavior.
 Workspace metadata, personal URL records, the MRU picker and Windows entry are
-implemented. Native launch adapters for other platforms remain planned.
+implemented. macOS/Linux native adapters are implemented with desktop qualification
+still open; see the actual verification matrix in [PILOT](../PILOT.md).
 
 | Area | Implementation | Verification |
 |---|---|---|
@@ -16,8 +17,11 @@ implemented. Native launch adapters for other platforms remain planned.
 | Read-only launch planning, digest consent and dispatch results | [launch/launch.go](launch/launch.go) | [launch/launch_test.go](launch/launch_test.go) |
 | Conflict isolation, pin merging and large-workspace latency | [launch/launch.go](launch/launch.go) | [launch/resources_test.go](launch/resources_test.go), [launch/benchmark_test.go](launch/benchmark_test.go) |
 | Windows executable/URL dispatch and default launcher resolution | [platform/native_windows.go](platform/native_windows.go), [boundary](platform/platform.go) | [platform/native_windows_test.go](platform/native_windows_test.go), desktop smoke in [PILOT](../PILOT.md) |
+| macOS/Linux profiles and URL helpers | [platform/native_unix.go](platform/native_unix.go) | [platform/native_unix_test.go](platform/native_unix_test.go) |
+| Native desktop/remote-session preflight | [platform/session.go](platform/session.go), adjacent OS adapters | [platform/session_test.go](platform/session_test.go), [Windows station](platform/session_windows_test.go), [headless CLI](cli/launch_session_test.go) |
+| Detached child survival, arguments/CWD and helper deadlines | [platform/process.go](platform/process.go), native dispatch adapters | [platform/native_process_test.go](platform/native_process_test.go) on each native OS |
 | CLI arguments, JSON/exit codes and terminal-safe display | [cli/cli.go](cli/cli.go), called by [main](../cmd/desk/main.go) | [cli/cli_test.go](cli/cli_test.go), including separate-process writers |
-| Atomic file publication and native locks | [fileio/files.go](fileio/files.go), adjacent OS adapters | [fileio/files_test.go](fileio/files_test.go) |
+| Atomic file publication and native locks | [fileio/files.go](fileio/files.go), adjacent OS adapters | [fileio/files_test.go](fileio/files_test.go), [Unix permissions](fileio/native_unix_test.go) |
 
 Workspace owns the registry and identity rules. Launch owns approval storage and
 cross-feature entry orchestration; the platform adapter owns native dispatch.
