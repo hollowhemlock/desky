@@ -1,1 +1,4 @@
 *.go text eol=lf
+tools/vm/*.sh text eol=lf
+tools/vm/*.py text eol=lf
+tools/vm/tests/*.py text eol=lf

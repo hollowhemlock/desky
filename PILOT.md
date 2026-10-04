@@ -468,3 +468,44 @@ separate decision and authorization.
 To stop the local trial, remove only the generic pilot policy from AGENTS.md and
 retain the project's reading and maintenance guidance. Start a fresh task. No
 global Codex configuration needs to be rolled back.
+
+### 2026-10-04: repeatable Ubuntu VM qualification tooling
+
+- User-approved scope: Windows/PowerShell/VirtualBox tooling for a local Ubuntu
+  24.04 Desktop amd64 ISO, reusable targets and committed-source transfer. Guest
+  bootstrap runs once from the desktop with normal sudo prompts. No changes to
+  Desky's application launch contracts, pilot policy or global configuration.
+- Added `tools/vm` host lifecycle commands, private local overrides, bounded
+  process invocation and credential-file cleanup, guarded vendor finalization,
+  atomic source export/publication and exact source integrity checks. Existing
+  VM accounts/hardware and unowned disks are preserved. Added idempotent guest
+  prerequisites and explicit, individually observed qualification reports.
+- The root README routes to the workflow's authoritative instructions and
+  acceptance mapping. CI adds fake VirtualBox host tests and Linux Python/shell
+  checks; no actual VM installation is inferred from those tests.
+- Local host suite passes on PowerShell 7.6.6 / Windows, using a compiled fake
+  VirtualBox executable and synthetic credentials. It exercises public invocation,
+  settings, read-only status, reuse, interrupted configuration, ambiguous install
+  failure, disk identity/collision refusal, guest argument preservation and
+  committed-source exclusion of dirty/private/untracked files.
+- Ten Python tests pass in the existing WSL Ubuntu environment. They cover
+  checksums, atomic publication, concurrency, modified/missing/extra source,
+  symlink refusal, generated-output allowances, non-dpkg editor reuse,
+  observation status and failed account finalization using fake account commands.
+  WSL was used only for filesystem/script tests, not desktop qualification.
+- Full `go run ./tools/verify -cross` passed on Go 1.27.0 / Windows amd64,
+  including all six compile targets. The first attempt could not write the
+  global build cache; using the repository's ignored cache resolved it. A
+  nonfatal module-version metadata-cache permission warning remained during
+  builds. Shell syntax checks and `git diff --check` pass.
+- Fresh independent review found a duplicated Guest Control executable argument,
+  unsafe adoption of an existing disk path, and a metadata failure for existing
+  non-dpkg VS Code installations. Repairs add correct argument dispatch,
+  recorded medium UUID checks and separate executable-version reporting, with
+  focused regressions. Review does not establish real installation success.
+- Actual VirtualBox 7.2.20 read-only status reports the default target absent.
+  Only Ubuntu 26.04.1 Desktop was found locally; its detection command returned
+  an error despite some image metadata. No supported 24.04 ISO or real guest
+  credentials were supplied, and no VM was created or installed. Actual ISO
+  installation, Guest Control transport, repeated package bootstrap and visible
+  desktop checks remain **unverified**. Increment 4 remains open.

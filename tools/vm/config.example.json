@@ -1,0 +1,8 @@
+{
+  "VmName": "desky-dev",
+  "GuestUser": "dev",
+  "GuestRoot": "~/src/desky",
+  "MemoryMB": 8192,
+  "CPUs": 4,
+  "DiskGB": 100
+}

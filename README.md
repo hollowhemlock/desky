@@ -38,6 +38,11 @@ to compile all three OS targets for amd64 and arm64; this checks compilation,
 not native launch behavior. Dependencies
 are pinned in go.mod/go.sum; the first run may need network access to download them.
 
+For repeatable Linux desktop qualification from Windows, see the optional
+[Ubuntu VM workflow](tools/vm/README.md). It supports local VM settings, committed
+source transfer and isolated desktop reports. Its real installation/desktop
+acceptance remains open; automated helper checks are separate from GUI evidence.
+
 Run the resulting executable with `--help` for the implemented command catalog,
 owned by [the CLI](internal/cli/cli.go). For example, run `desk init` in a project
 directory, then `desk info --json` or `desk list`. Here `desk` means the built
