@@ -9,7 +9,9 @@ function New-SourceExport {
     $dir = Join-Path $Settings.Cache ([guid]::NewGuid().ToString('N'))
     [IO.Directory]::CreateDirectory($dir) | Out-Null
     $archive = Join-Path $dir 'source.tar'
-    Invoke-VMProcess 'git' @('-C', $repo, 'archive', '--format=tar', "--output=$archive", $revision) | Out-Null
+    # Archive applies working-tree conversions. Host line-ending preferences must
+    # not change committed bytes; explicit transforming attributes still fail below.
+    Invoke-VMProcess 'git' @('-C', $repo, '-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'archive', '--format=tar', "--output=$archive", $revision) | Out-Null
     $tree = (Invoke-VMProcess 'git' @('-C', $repo, 'ls-tree', '-rz', '--full-tree', $revision)).Out
     $expected = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
     foreach ($item in $tree.Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)) {

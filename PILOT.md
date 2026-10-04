@@ -488,6 +488,13 @@ global Codex configuration needs to be rolled back.
   settings, read-only status, reuse, interrupted configuration, ambiguous install
   failure, disk identity/collision refusal, guest argument preservation and
   committed-source exclusion of dirty/private/untracked files.
+- Initial CI caught Git applying Windows line-ending preferences during archive
+  export. A local regression reproduced it; export now disables those preferences
+  for its Git invocation while retaining exact blob checks and explicit attribute
+  rejection. Host tests cover both CRLF preferences and transforming attributes.
+- An actual 73-file committed export was published and exactly verified on the
+  WSL filesystem, including repeat publication. This checks cross-host source
+  encoding and manifest interoperability, not VirtualBox transport or a desktop.
 - Ten Python tests pass in the existing WSL Ubuntu environment. They cover
   checksums, atomic publication, concurrency, modified/missing/extra source,
   symlink refusal, generated-output allowances, non-dpkg editor reuse,

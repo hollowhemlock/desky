@@ -117,6 +117,7 @@ mean an unknown outcome; inspect before retrying because active operations are
 not killed. Host mutations and guest publication/bootstrap/checks are serialized.
 
 Source is exported with `git archive HEAD` and checked against the Git tree.
+Host line-ending preferences are disabled for that export to preserve committed bytes.
 Working changes, ignored files, history and authentication are excluded. Already
 committed secrets are not detected or removed. Submodules and export attributes
 that omit/transform committed content are rejected. Transfers use checksums,

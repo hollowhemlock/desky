@@ -112,8 +112,10 @@ exit ${MY_EXITCODE}
     $repo = Join-Path $testRoot 'repo with spaces'
     [IO.Directory]::CreateDirectory($repo) | Out-Null
     & git -C $repo init -q
-    'committed' | Set-Content (Join-Path $repo 'public.txt')
-    '.private' | Set-Content (Join-Path $repo '.gitignore')
+    & git -C $repo config core.autocrlf true
+    & git -C $repo config core.eol crlf
+    [IO.File]::WriteAllText((Join-Path $repo 'public.txt'), "committed`n")
+    [IO.File]::WriteAllText((Join-Path $repo '.gitignore'), ".private`n")
     & git -C $repo add -- public.txt .gitignore
     & git -C $repo -c user.name='VM fixture' -c user.email='fixture@example.invalid' commit -qm fixture
     'dirty' | Set-Content (Join-Path $repo 'public.txt')
@@ -124,6 +126,12 @@ exit ${MY_EXITCODE}
     $manifest = Get-Content $export.Manifest -Raw | ConvertFrom-Json
     Assert ($manifest.files.Count -eq 2) 'Private or untracked files were exported'
     Assert ($manifest.files.path -notcontains '.private') 'Private file in manifest'
+    $public = @($manifest.files | Where-Object path -eq 'public.txt')[0]
+    $committedHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes("committed`n"))).ToLowerInvariant()
+    Assert ($public.sha256 -ceq $committedHash) 'Host line-ending settings changed exported contents'
+    # Repository attributes take precedence over core settings and remain guarded.
+    [IO.File]::WriteAllText((Join-Path $repo '.git/info/attributes'), "public.txt text eol=crlf`n")
+    Must-Fail { & $module { param($settings) New-SourceExport $settings } $exportSettings } 'Archive transformations'
     Write-Output 'VM host tests passed.'
 } finally {
     Remove-Item Env:DESKY_FAKE_VBOX_ROOT -ErrorAction SilentlyContinue
