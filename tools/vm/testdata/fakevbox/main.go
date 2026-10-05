@@ -91,7 +91,20 @@ func main() {
 		}
 	case "unattended":
 		if args[1] == "detect" {
-			fmt.Println("OSTypeId=\"Ubuntu24_LTS_64\"\nOSVersion=\"24.04.5\"\nIsInstallSupported=\"on\"")
+			if data, err := os.ReadFile(filepath.Join(root, "detect-result.json")); err == nil {
+				var result struct {
+					Code int
+					Out  string
+					Err  string
+				}
+				if json.Unmarshal(data, &result) != nil {
+					os.Exit(98)
+				}
+				fmt.Print(result.Out)
+				fmt.Fprint(os.Stderr, result.Err)
+				os.Exit(result.Code)
+			}
+			fmt.Println("OSTypeId=\"Ubuntu24_LTS_64\"\nOSVersion=\"24.04.5.1\"\nIsInstallSupported=\"on\"")
 		} else {
 			state["VMState"] = "running"
 		}

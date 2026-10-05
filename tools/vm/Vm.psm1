@@ -260,9 +260,21 @@ function New-ManagedVM {
     if ($Record -and $Record.Stage -ne 'configuring') { throw 'A prior installation attempt exists but its VM is missing; inspect the ownership record. No recreation was attempted.' }
     if (-not (Test-Path -LiteralPath $Settings.IsoPath -PathType Leaf)) { throw 'Supply -IsoPath with a local Ubuntu 24.04 Desktop amd64 ISO.' }
     $iso = [IO.Path]::GetFullPath($Settings.IsoPath)
-    $detected = ConvertFrom-VBoxLines (Invoke-VBox $Settings @('unattended', 'detect', "--iso=$iso", '--machine-readable')).Out
-    if ($detected.IsInstallSupported -ne 'on' -or $detected.OSVersion -notmatch '^24\.04' -or $detected.OSTypeId -notmatch '^Ubuntu.*_64$' -or [IO.Path]::GetFileName($iso) -notmatch 'desktop-amd64\.iso$') {
-        throw 'Only detected Ubuntu 24.04 Desktop amd64 unattended installation is supported.'
+    $detection = Invoke-VBox $Settings @('unattended', 'detect', "--iso=$iso", '--machine-readable') -AllowFailure
+    $detected = ConvertFrom-VBoxLines $detection.Out
+    $release = ''
+    if ($detected.ContainsKey('OSVersion') -and $detected.OSVersion -match '^([0-9]{2}\.[0-9]{2}(?:\.[0-9]{1,3}){0,2})(?=\s|$)') { $release = $Matches[1] }
+    $ubuntu64 = $detected.ContainsKey('OSTypeId') -and $detected.OSTypeId -match '^Ubuntu[A-Za-z0-9_]*_64$'
+    $description = if ($ubuntu64 -and $release) { "Detected Ubuntu $release (64-bit). " } else { '' }
+    $requirement = 'This helper requires a local Ubuntu 24.04 LTS Desktop amd64 ISO and successful VirtualBox unattended detection.'
+    # Detection can return plausible metadata together with a failure. Report only
+    # validated version fields and a known error marker, never raw tool diagnostics.
+    if ($detection.Code -ne 0) {
+        $reason = if ($detection.Err -match '\bE_NOTIMPL\b') { '; E_NOTIMPL (operation not implemented)' } else { '' }
+        throw "VirtualBox ISO detection failed (exit $($detection.Code)$reason). $description$requirement This attempt made no VM changes. See tools/vm/README.md."
+    }
+    if (-not $detected.ContainsKey('IsInstallSupported') -or $detected.IsInstallSupported -ne 'on' -or $release -notmatch '^24\.04(?:\.|$)' -or -not $ubuntu64 -or [IO.Path]::GetFileName($iso) -notmatch 'desktop-amd64\.iso$') {
+        throw "$description$requirement This attempt made no VM changes. See tools/vm/README.md."
     }
     $vendor = Join-Path (Split-Path $Settings.VBoxPath) 'UnattendedTemplates/ubuntu_postinstall.sh'
     $additions = Join-Path (Split-Path $Settings.VBoxPath) 'VBoxGuestAdditions.iso'

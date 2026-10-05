@@ -516,3 +516,21 @@ global Codex configuration needs to be rolled back.
   credentials were supplied, and no VM was created or installed. Actual ISO
   installation, Guest Control transport, repeated package bootstrap and visible
   desktop checks remain **unverified**. Increment 4 remains open.
+
+### 2026-10-05: actionable ISO detection failures
+
+- Reproduced the user's Ubuntu 26.04.1 ISO failure with VirtualBox 7.2.20.
+  Detection returns exit 1 and `E_NOTIMPL` while still printing release metadata
+  and `IsInstallSupported="on"`. The target VM remains absent; no installation
+  or credentials were needed for reproduction.
+- The helper now reports the detection failure, sanitized detected release and
+  required Ubuntu 24.04 Desktop amd64 boundary before VM mutation. Missing
+  metadata produces an actionable error instead of a strict-mode property error.
+  Raw diagnostics remain suppressed. Documentation links to the supported image.
+- Host regressions cover failed detection with supported/unsupported/empty
+  metadata, successful detection of an unsupported release, missing fields,
+  suppression of diagnostic details and absence of VM/state mutation. Successful
+  fixture detection covers a four-component point-release version. These checks
+  do not establish real Ubuntu installation or desktop qualification.
+- Host regressions and the full Windows verification runner pass. Focused
+  self-review and whitespace checks found no further defects in this repair.

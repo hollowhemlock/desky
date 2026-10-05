@@ -15,6 +15,15 @@ bootstrap and desktop qualification remain unverified. The local ISO discovered
 during implementation was Ubuntu 26.04.1, outside this workflow's boundary.
 Helper tests and WSL checks do not qualify desktops; see [PILOT](../../PILOT.md).
 
+If `create` reports an ISO detection failure, that attempt made no VM changes.
+VirtualBox can print image metadata even when detection fails; the
+helper requires a successful exit as well as supported metadata. Ubuntu 26.04.1
+is outside this workflow's supported release and produced `E_NOTIMPL` during
+local detection. Use an [Ubuntu 24.04 LTS Desktop amd64 image](https://releases.ubuntu.com/24.04/)
+instead. If detection also fails for that release, verify the ISO against Ubuntu's
+published checksum and check the installed VirtualBox 7.2 build before retrying.
+Renaming an ISO does not change its detected release.
+
 ## First run
 
 From the repository root in PowerShell, using a committed revision containing
@@ -22,7 +31,7 @@ these tools:
 
 ```powershell
 ./tools/vm/manage.ps1 status
-./tools/vm/manage.ps1 create -IsoPath 'D:\Downloads\ubuntu-24.04.5-desktop-amd64.iso'
+./tools/vm/manage.ps1 create -IsoPath 'D:\Downloads\ubuntu-24.04.5.1-desktop-amd64.iso'
 ```
 
 Enter the guest password at the local masked prompt and keep it in your password

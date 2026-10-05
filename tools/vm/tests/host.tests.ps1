@@ -50,6 +50,28 @@ exit ${MY_EXITCODE}
             try { & $Body $file } finally { Remove-Item -LiteralPath $file }
         }
     }
+    # A failed detector may still print plausible metadata. Never accept it or
+    # expose its raw diagnostics, and keep unsupported/missing metadata actionable.
+    $detectionFixture = Join-Path $testRoot 'detect-result.json'
+    $supported = "OSTypeId=`"Ubuntu24_LTS_64`"`nOSVersion=`"24.04.5`"`nIsInstallSupported=`"on`""
+    $unsupported = "OSTypeId=`"Ubuntu25_64`"`nOSVersion=`"26.04.1 LTS Ubuntu`"`nIsInstallSupported=`"on`""
+    foreach ($case in @(
+        @{ Code=1; Out=$unsupported; Err='Code E_NOTIMPL: fixture-private-detail'; Pattern='ISO detection failed.*E_NOTIMPL.*Detected Ubuntu 26\.04\.1.*requires.*24\.04' },
+        @{ Code=1; Out=$supported; Err='fixture-private-detail'; Pattern='ISO detection failed.*Detected Ubuntu 24\.04\.5' },
+        @{ Code=1; Out=''; Err='fixture-private-detail'; Pattern='ISO detection failed.*requires.*24\.04' },
+        @{ Code=0; Out=$unsupported; Err=''; Pattern='Detected Ubuntu 26\.04\.1.*requires.*24\.04' },
+        @{ Code=0; Out=''; Err=''; Pattern='requires.*24\.04' }
+    )) {
+        $case | ConvertTo-Json | Set-Content -LiteralPath $detectionFixture
+        $failure = $null
+        try { Invoke-VMAction 'create' $s '' '' | Out-Null } catch { $failure = $_.Exception.Message }
+        Assert ($failure -and $failure -match $case.Pattern) 'ISO rejection did not explain the detection failure or supported release'
+        Assert (-not $failure.Contains('fixture-private-detail')) 'Raw detection diagnostics were exposed'
+        Assert (-not (Test-Path -LiteralPath $s.StateRoot)) 'Rejected ISO wrote installation state'
+        $detectionCalls = Get-Content (Join-Path $testRoot 'calls.jsonl') -Raw
+        Assert ($detectionCalls -notmatch 'createvm|createmedium|modifyvm|storageattach|"install"') 'Rejected ISO mutated a VM'
+    }
+    Remove-Item -LiteralPath $detectionFixture
     Invoke-VMAction 'create' $s '' '' | Out-Null
     $records = @(Get-ChildItem $s.StateRoot -Filter '*.json')
     Assert ($records.Count -eq 1) 'Ownership record missing'
