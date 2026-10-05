@@ -196,7 +196,10 @@ try {
         @{ Failure='copyto-source.tar'; Message='Copying source.tar to guest staging failed'; Copies=1; Publishes=0 },
         @{ Failure='copyto-manifest.json'; Message='Copying manifest.json to guest staging failed'; Copies=2; Publishes=0 },
         @{ Failure='copyto-transport.py'; Message='Copying transport.py to guest staging failed'; Copies=3; Publishes=0 },
-        @{ Failure='publish'; Message='Verifying and publishing committed source failed'; Copies=3; Publishes=1 }
+        @{ Failure='publish'; Message='Verifying and publishing committed source failed'; Copies=3; Publishes=1 },
+        @{ Failure='publication-empty'; Message='stdout characters: 0; stderr characters: 0; expected complete line: False'; Copies=3; Publishes=1 },
+        @{ Failure='publication-noisy'; Message='expected complete line: True'; Copies=3; Publishes=1 },
+        @{ Failure='publication-wrong'; Message='expected complete line: False'; Copies=3; Publishes=1 }
     )) {
         Set-Content (Join-Path $testRoot 'fail') $case.Failure
         $before = @(Get-Content (Join-Path $testRoot 'calls.jsonl')).Count

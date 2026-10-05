@@ -148,6 +148,16 @@ func main() {
 					if json.Unmarshal(data, &manifest) != nil || manifest.Revision == "" {
 						os.Exit(52)
 					}
+					if failure == "publication-empty" {
+						return
+					}
+					if failure == "publication-noisy" {
+						fmt.Println("fixture-private-detail")
+					}
+					if failure == "publication-wrong" {
+						fmt.Println("/unexpected/fixture-private-detail")
+						return
+					}
 					fmt.Println(strings.TrimRight(guestArgs[3], "/") + "/" + manifest.Revision)
 					return
 				}

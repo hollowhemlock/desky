@@ -49,6 +49,24 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(guest.verify_tree(root), self.manifest)
         self.assertEqual(self.publish(), root)
 
+    @unittest.skipUnless(sys.platform == "linux", "Linux publication subprocess")
+    def test_publish_cli_reply_and_retry(self):
+        parent = self.parent / "CLI 雪 & spaces; 'quote'"
+        parent.mkdir()
+        incoming = parent / self.incoming.name
+        self.incoming.rename(incoming)
+        command = [sys.executable, guest.__file__, "publish", str(incoming), str(parent),
+                   self.manifest["archive_sha256"]]
+        for _ in range(2):
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, str(parent / self.manifest["revision"]) + "\n")
+            self.assertEqual(result.stderr, "")
+        result = subprocess.run(command[:-1] + ["0" * 64], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("checksum", result.stderr)
+
     def test_added_source_or_test_invalidates_revision(self):
         root = self.publish()
         for name in ("source/extra.go", "source/extra_test.go", "bin/extra_test.go"):

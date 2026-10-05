@@ -90,10 +90,15 @@ print(tempfile.mkdtemp(prefix='.incoming-',dir=p))
     }
     Write-Host 'Verifying and publishing committed source...'
     try {
-        $published = (Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @("$incoming/transport.py", 'publish', $incoming, $GuestRoot, $export.Hash)).Out.Trim()
+        $publication = Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @("$incoming/transport.py", 'publish', $incoming, $GuestRoot, $export.Hash)
+        $published = $publication.Out.Trim()
     } catch { throw "Verifying and publishing committed source failed. $($_.Exception.Message)" }
     $expected = $GuestRoot.TrimEnd('/') + '/' + $export.Revision
-    if ($published -cne $expected) { throw 'Guest source publication did not return the expected revision directory.' }
+    if ($published -cne $expected) {
+        # Diagnose empty/truncated/noisy replies without revealing guest output.
+        $expectedLine = @($published -split '\r?\n') -ccontains $expected
+        throw "Guest source publication did not return the expected revision directory (stdout characters: $($publication.Out.Length); stderr characters: $($publication.Err.Length); expected complete line: $expectedLine). No raw guest output was logged."
+    }
     $quoted = "'" + $published.Replace("'", "'\''") + "'"
     Write-Output "Committed revision: $($export.Revision)"
     Write-Output "In Ubuntu's desktop terminal, run: cd -- $quoted && bash tools/vm/bootstrap.sh"

@@ -620,3 +620,24 @@ global Codex configuration needs to be rolled back.
   the user retries provisioning and completes the guest-side workflow.
 - The expanded Windows host suite and full native verification runner pass.
   The existing nonfatal Go module metadata-cache permission warning remains.
+
+### 2026-10-05: diagnose guest publication replies
+
+- The user's next run copied all three files and reached publication, which
+  returned success but failed the host's exact revision-directory reply check.
+  This confirms progress past the earlier copy failure; it does not establish
+  verified publication or completed bootstrap.
+- The exact exported archive, manifest and transport script published successfully
+  through a Python subprocess on Linux-native temporary storage, returning the
+  expected revision path with no stderr. An initial check on the Windows-mounted
+  filesystem failed executable-mode integrity, so it was repeated on Linux-native
+  storage without weakening mode checks. No guest credentials were accessed.
+- Mismatch diagnostics now expose only output lengths and whether the expected
+  complete path line is present. Raw guest output stays private, and unexpected
+  or empty replies still fail. Host regressions cover those cases; a new Linux
+  subprocess test covers the real CLI's exact reply, repeat publication and
+  checksum failure, including spaces, Unicode and metacharacters in its path.
+- The host suite, thirteen Linux tests and full native verification runner pass.
+  The existing nonfatal Go module metadata-cache permission warning remains.
+  The VM-specific cause remains unresolved pending the user's local diagnostic
+  retry; no successful real publication or desktop qualification is claimed.
