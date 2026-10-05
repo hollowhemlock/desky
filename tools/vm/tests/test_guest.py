@@ -81,6 +81,44 @@ class ExportTests(unittest.TestCase):
                 self.assertTrue(file.exists())
                 file.unlink()
 
+    @unittest.skipUnless(sys.platform == "linux", "Linux publication subprocess")
+    def test_publish_receipt_survives_lost_stdout(self):
+        command = [sys.executable, guest.__file__, "publish", str(self.incoming), str(self.parent),
+                   self.manifest["archive_sha256"], "--receipt"]
+        result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        receipt_path = self.incoming / "publication.json"
+        original = receipt_path.read_bytes()
+        self.assertEqual(json.loads(original), {
+            "schema": 1, "revision": self.manifest["revision"],
+            "directory": str(self.parent / self.manifest["revision"]),
+            "incoming": str(self.incoming), "archive_sha256": self.manifest["archive_sha256"]})
+        # Each host attempt has its own staging directory. A preexisting receipt
+        # must not be replaced, including by a retry or linked destination.
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(receipt_path.read_bytes(), original)
+        receipt_path.unlink()
+        target = self.parent / "unrelated.txt"
+        target.write_text("keep")
+        receipt_path.symlink_to(target)
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(target.read_text(), "keep")
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux publication subprocess")
+    def test_publish_failure_writes_no_receipt(self):
+        command = [sys.executable, guest.__file__, "publish", str(self.incoming), str(self.parent),
+                   self.manifest["archive_sha256"], "--receipt"]
+        result = subprocess.run(command[:-2] + ["0" * 64, "--receipt"], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.incoming / "publication.json").exists())
+        root = self.publish()
+        (root / "source/extra_test.go").write_text("package main\n")
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.incoming / "publication.json").exists())
+
     def test_modified_missing_mode_and_unexpected_directory(self):
         root = self.publish()
         source = root / "source/main.go"

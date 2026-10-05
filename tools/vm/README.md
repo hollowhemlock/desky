@@ -53,10 +53,14 @@ It reports staging, each file copy and source publication separately. If a
 transfer fails, its error identifies the stage while keeping raw guest diagnostics
 private. Retry `provision` after addressing the failure; each attempt uses a new
 staging directory, and an incomplete transfer is never published.
-If publication exits successfully but its reply differs from the expected path,
-the error reports stdout/stderr character counts and whether a complete expected
-path line was present. These diagnostics reveal no raw guest output; a mismatch
-still prevents the helper from reporting success.
+After successful verification and publication, the guest writes a small
+`publication.json` confirmation inside that attempt's staging directory. The host
+retrieves only this workflow file and checks its revision, archive checksum,
+destination and staging identity. Success does not depend on VirtualBox delivering
+the process's final stdout. Missing, incomplete or mismatched confirmations still
+fail without exposing raw guest content; retry `provision` to verify and reuse an
+intact revision in a new attempt. The local confirmation stays beside the ignored
+source archive beneath `.cache/vm/`.
 Run the printed bootstrap command inside Ubuntu's logged-in desktop terminal.
 Bootstrap uses standard sudo prompts to install missing Git/compiler tools, Go,
 VS Code, Firefox, GNOME Terminal and GNOME Text Editor. It checks actual

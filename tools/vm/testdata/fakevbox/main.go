@@ -66,6 +66,32 @@ func main() {
 		if len(args) < 3 {
 			os.Exit(3)
 		}
+		if args[2] == "copyfrom" {
+			if failure == "receipt-copy" || !slices.Contains(args, "--no-replace") {
+				fmt.Fprintln(os.Stderr, "fixture-private-detail")
+				os.Exit(42)
+			}
+			source, destination := args[len(args)-2], args[len(args)-1]
+			if !strings.HasSuffix(source, "/publication.json") {
+				os.Exit(53)
+			}
+			staging := filepath.Base(strings.TrimSuffix(source, "/publication.json"))
+			data, err := os.ReadFile(filepath.Join(root, staging, "publication.json"))
+			if err != nil {
+				os.Exit(54)
+			}
+			target, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+			if err != nil {
+				os.Exit(55)
+			}
+			if _, err := target.Write(data); err != nil {
+				panic(err)
+			}
+			if err := target.Close(); err != nil {
+				panic(err)
+			}
+			return
+		}
 		if args[2] == "copyto" {
 			// Match GuestPath::BuildDestinationPath: a directory operand needs
 			// its trailing separator, even with --target-directory.
@@ -126,7 +152,7 @@ func main() {
 					fmt.Println(strings.TrimRight(guestArgs[2], "/") + "/" + filepath.Base(dir))
 					return
 				}
-				if len(guestArgs) == 5 && guestArgs[1] == "publish" {
+				if len(guestArgs) == 6 && guestArgs[1] == "publish" && guestArgs[5] == "--receipt" {
 					if failure == "publish" {
 						fmt.Fprintln(os.Stderr, "fixture-private-detail")
 						os.Exit(42)
@@ -147,6 +173,23 @@ func main() {
 					var manifest struct{ Revision string }
 					if json.Unmarshal(data, &manifest) != nil || manifest.Revision == "" {
 						os.Exit(52)
+					}
+					receipt := map[string]any{
+						"schema": 1, "revision": manifest.Revision,
+						"directory":      strings.TrimRight(guestArgs[3], "/") + "/" + manifest.Revision,
+						"archive_sha256": guestArgs[4], "incoming": guestArgs[2],
+					}
+					if field, ok := strings.CutPrefix(failure, "receipt-wrong-"); ok {
+						receipt[field] = "fixture-private-detail"
+					}
+					data, _ = json.Marshal(receipt)
+					if failure == "receipt-invalid" {
+						data = []byte("{fixture-private-detail")
+					}
+					if failure != "receipt-missing" {
+						if err := os.WriteFile(filepath.Join(staging, "publication.json"), data, 0600); err != nil {
+							panic(err)
+						}
 					}
 					if failure == "publication-empty" {
 						return

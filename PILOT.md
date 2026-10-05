@@ -641,3 +641,26 @@ global Codex configuration needs to be rolled back.
   The existing nonfatal Go module metadata-cache permission warning remains.
   The VM-specific cause remains unresolved pending the user's local diagnostic
   retry; no successful real publication or desktop qualification is claimed.
+
+### 2026-10-05: confirm publication independently of process output
+
+- The user's diagnostic retry returned exit zero with zero stdout and stderr
+  characters. That establishes a missing reply, not successful source publication.
+  VirtualBox's [guest process loop](https://github.com/VirtualBox/virtualbox/blob/main/src/VBox/Frontends/VBoxManage/VBoxManageGuestCtrl.cpp)
+  completes on termination without a final output drain; lost final output is
+  consistent with the observation, but has not been proven on this VM.
+- Publication now optionally writes an exclusive `publication.json` receipt only
+  after archive/tree verification and successful publication or verified reuse.
+  The host retrieves that workflow file from the unique staging directory into
+  the unique local export directory, then checks its schema, revision, destination,
+  archive checksum and staging identity. Guest exit zero alone never confirms it.
+  Existing receipts and symlink targets are preserved; a failed attempt may be
+  retried with new staging, revalidating any already-published revision.
+- Host regressions cover lost/noisy output with valid receipts and missing,
+  malformed, mismatched or unavailable receipts. Linux subprocess tests discard
+  stdout, verify the receipt, reject existing/linked receipts and prove checksum
+  or unexpected-source failures produce no receipt. The Windows host suite,
+  fifteen Linux tests, guest shell syntax check and full native verification pass
+  (the existing nonfatal Go module cache permission warning remains). Independent
+  review found no actionable defects. A real Guest Control retry, bootstrap and
+  desktop qualification remain open; no VM credentials were retained or accessed.

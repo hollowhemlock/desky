@@ -90,16 +90,32 @@ print(tempfile.mkdtemp(prefix='.incoming-',dir=p))
     }
     Write-Host 'Verifying and publishing committed source...'
     try {
-        $publication = Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @("$incoming/transport.py", 'publish', $incoming, $GuestRoot, $export.Hash)
-        $published = $publication.Out.Trim()
+        Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @("$incoming/transport.py", 'publish', $incoming, $GuestRoot, $export.Hash, '--receipt') | Out-Null
     } catch { throw "Verifying and publishing committed source failed. $($_.Exception.Message)" }
+    # Do not rely on final stdout surviving Guest Control process termination.
+    # Both paths belong to this attempt, so an older receipt cannot confirm it.
+    Write-Host 'Retrieving publication confirmation...'
+    $receiptPath = Join-Path $export.Directory 'publication.json'
+    try {
+        Invoke-VBox $Settings @('guestcontrol', $UUID, 'copyfrom', '--username', $Settings.GuestUser, '--passwordfile', $PasswordFile,
+            '--no-replace', "$incoming/publication.json", $receiptPath) 60 | Out-Null
+    } catch { throw "Retrieving publication confirmation failed. Publication is unconfirmed; retry provision. $($_.Exception.Message)" }
+    try {
+        if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf) -or (Get-Item -LiteralPath $receiptPath).Length -gt 65536) { throw 'Invalid receipt file.' }
+        $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json -AsHashtable
+        if ($receipt -isnot [System.Collections.IDictionary]) { throw 'Invalid receipt object.' }
+    } catch { throw 'Invalid publication confirmation; no raw guest content was logged.' }
     $expected = $GuestRoot.TrimEnd('/') + '/' + $export.Revision
-    if ($published -cne $expected) {
-        # Diagnose empty/truncated/noisy replies without revealing guest output.
-        $expectedLine = @($published -split '\r?\n') -ccontains $expected
-        throw "Guest source publication did not return the expected revision directory (stdout characters: $($publication.Out.Length); stderr characters: $($publication.Err.Length); expected complete line: $expectedLine). No raw guest output was logged."
+    if ($receipt.Count -ne 5 -or $receipt['schema'] -isnot [long] -or $receipt['schema'] -ne 1) {
+        throw 'Publication confirmation does not match this transfer; no raw guest content was logged.'
     }
-    $quoted = "'" + $published.Replace("'", "'\''") + "'"
+    $identity = @{ revision = $export.Revision; directory = $expected; archive_sha256 = $export.Hash; incoming = $incoming }
+    foreach ($key in $identity.Keys) {
+        if ($receipt[$key] -isnot [string] -or $receipt[$key] -cne $identity[$key]) {
+            throw 'Publication confirmation does not match this transfer; no raw guest content was logged.'
+        }
+    }
+    $quoted = "'" + $expected.Replace("'", "'\''") + "'"
     Write-Output "Committed revision: $($export.Revision)"
     Write-Output "In Ubuntu's desktop terminal, run: cd -- $quoted && bash tools/vm/bootstrap.sh"
     Write-Output 'Then run: python3 tools/vm/guest.py qualify .'

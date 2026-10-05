@@ -191,28 +191,47 @@ try {
         Copy-ToGuest $settings $uuid 'fixture-password-file' $source $dest
     } $exportSettings $id $destination $export.Archive } 'Tool operation.*failed'
     Assert ((Get-FileHash -LiteralPath (Join-Path $staging 'source.tar')).Hash -eq $originalHash) 'Existing guest copy was replaced'
+    # Lost or noisy process output is harmless only with a matching receipt.
+    foreach ($failure in 'publication-empty', 'publication-noisy', 'publication-wrong') {
+        Set-Content (Join-Path $testRoot 'fail') $failure
+        $result = & $module {
+            param($sourceFile, $settings, $uuid, $root)
+            . $sourceFile
+            Send-VMSource $settings $uuid 'fixture-password-file' $root
+        } (Join-Path $toolDir 'Source.ps1') $exportSettings $id $guestRoot
+        Assert (($result -join "`n").Contains("Committed revision: $revision")) 'Valid receipt was rejected after lost/noisy process output'
+        Assert (-not ($result -join "`n").Contains('fixture-private-detail')) 'Raw publication output was exposed'
+        Remove-Item -LiteralPath (Join-Path $testRoot 'fail')
+    }
     foreach ($case in @(
         @{ Failure='stage'; Message='Creating guest staging directory failed'; Copies=0; Publishes=0 },
         @{ Failure='copyto-source.tar'; Message='Copying source.tar to guest staging failed'; Copies=1; Publishes=0 },
         @{ Failure='copyto-manifest.json'; Message='Copying manifest.json to guest staging failed'; Copies=2; Publishes=0 },
         @{ Failure='copyto-transport.py'; Message='Copying transport.py to guest staging failed'; Copies=3; Publishes=0 },
         @{ Failure='publish'; Message='Verifying and publishing committed source failed'; Copies=3; Publishes=1 },
-        @{ Failure='publication-empty'; Message='stdout characters: 0; stderr characters: 0; expected complete line: False'; Copies=3; Publishes=1 },
-        @{ Failure='publication-noisy'; Message='expected complete line: True'; Copies=3; Publishes=1 },
-        @{ Failure='publication-wrong'; Message='expected complete line: False'; Copies=3; Publishes=1 }
+        @{ Failure='receipt-missing'; Message='Retrieving publication confirmation failed'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-copy'; Message='Retrieving publication confirmation failed'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-invalid'; Message='Invalid publication confirmation'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-wrong-schema'; Message='Publication confirmation does not match'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-wrong-revision'; Message='Publication confirmation does not match'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-wrong-directory'; Message='Publication confirmation does not match'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-wrong-archive_sha256'; Message='Publication confirmation does not match'; Copies=3; Publishes=1 },
+        @{ Failure='receipt-wrong-incoming'; Message='Publication confirmation does not match'; Copies=3; Publishes=1 }
     )) {
         Set-Content (Join-Path $testRoot 'fail') $case.Failure
         $before = @(Get-Content (Join-Path $testRoot 'calls.jsonl')).Count
         $message = ''
+        $result = @()
         try {
-            & $module {
+            $result = & $module {
                 param($sourceFile, $settings, $uuid, $root)
                 . $sourceFile
                 Send-VMSource $settings $uuid 'fixture-password-file' $root
-            } (Join-Path $toolDir 'Source.ps1') $exportSettings $id $guestRoot | Out-Null
+            } (Join-Path $toolDir 'Source.ps1') $exportSettings $id $guestRoot
         } catch { $message = $_.Exception.Message }
         Assert ($message.Contains($case.Message)) 'Transfer failure did not identify its stage'
         Assert (-not $message.Contains('fixture-private-detail')) 'Transfer failure exposed raw diagnostics'
+        Assert (-not (($result -join "`n").Contains('Committed revision:'))) 'Failed transfer was acknowledged'
         $failedCalls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | Select-Object -Skip $before | ForEach-Object { ,@($_ | ConvertFrom-Json) })
         Assert (@($failedCalls | Where-Object { $_[2] -eq 'copyto' }).Count -eq $case.Copies) 'Transfer continued copying after a failure'
         Assert (@($failedCalls | Where-Object { $_ -contains 'publish' }).Count -eq $case.Publishes) 'Partial transfer reached publication'

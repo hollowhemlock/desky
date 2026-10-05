@@ -434,11 +434,23 @@ def main():
     transfer = commands.add_parser("publish")
     for name in ("incoming", "parent", "sha256"):
         transfer.add_argument(name)
+    transfer.add_argument("--receipt", action="store_true",
+                          help="write publication.json in this unique staging directory")
     for name in ("verify", "bootstrap", "qualify"):
         commands.add_parser(name).add_argument("root", type=Path)
     args = parser.parse_args()
     if args.command == "publish":
-        print(publish(args.incoming, args.parent, args.sha256))
+        destination = publish(args.incoming, args.parent, args.sha256)
+        if args.receipt:
+            # The host retrieves this file after a successful exit. Guest Control
+            # can lose final stdout; neither empty output nor exit zero is proof.
+            receipt = {"schema": 1, "revision": destination.name, "directory": str(destination),
+                       "archive_sha256": args.sha256, "incoming": str(unlinked(args.incoming))}
+            with unlinked(Path(args.incoming) / "publication.json").open("x", encoding="utf-8") as stream:
+                json.dump(receipt, stream, ensure_ascii=False)
+                stream.flush()
+                os.fsync(stream.fileno())
+        print(destination)
     elif args.command == "verify":
         print(verify_tree(args.root)["revision"])
     elif args.command == "bootstrap":
