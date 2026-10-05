@@ -155,6 +155,66 @@ try {
     # Repository attributes take precedence over core settings and remain guarded.
     [IO.File]::WriteAllText((Join-Path $repo '.git/info/attributes'), "public.txt text eol=crlf`n")
     Must-Fail { & $module { param($settings) New-SourceExport $settings } $exportSettings } 'Archive transformations'
+
+    # Exercise real export/staging/copy/publication orchestration instead of the
+    # lifecycle stub above. The fake models VBox's trailing-slash copy semantics.
+    [IO.File]::WriteAllText((Join-Path $repo '.git/info/attributes'), '')
+    [IO.Directory]::CreateDirectory((Join-Path $repo 'tools/vm')) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $toolDir 'guest.py') -Destination (Join-Path $repo 'tools/vm/guest.py')
+    & git -C $repo add -- tools/vm/guest.py
+    & git -C $repo -c user.name='VM fixture' -c user.email='fixture@example.invalid' commit -qm 'add guest fixture'
+    if ($LASTEXITCODE) { throw 'Transfer fixture commit failed' }
+    $exportSettings.VBoxPath = $fake
+    $guestRoot = '/home/dev/source 雪 & spaces; punctuation'
+    $revision = (& git -C $repo rev-parse HEAD).Trim()
+    $before = @(Get-Content (Join-Path $testRoot 'calls.jsonl')).Count
+    $result = & $module {
+        param($sourceFile, $settings, $uuid, $root)
+        . $sourceFile
+        Send-VMSource $settings $uuid 'fixture-password-file' $root
+    } (Join-Path $toolDir 'Source.ps1') $exportSettings $id $guestRoot
+    Assert (($result -join "`n").Contains("Committed revision: $revision")) 'Transfer did not acknowledge publication'
+    $transferCalls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | Select-Object -Skip $before | ForEach-Object { ,@($_ | ConvertFrom-Json) })
+    $copies = @($transferCalls | Where-Object { $_[2] -eq 'copyto' })
+    Assert ($copies.Count -eq 3) 'Transfer did not copy all three workflow files'
+    $destination = $copies[0][[array]::IndexOf($copies[0], '--target-directory') + 1]
+    Assert ($destination.StartsWith($guestRoot + '/.incoming-') -and $destination.EndsWith('/')) 'Guest directory argument lost its path or trailing slash'
+    $staging = Join-Path $testRoot ($destination.TrimEnd('/').Split('/')[-1])
+    $originalHash = (Get-FileHash -LiteralPath (Join-Path $staging 'source.tar')).Hash
+    # A direct call without the separator must fail just as the real vendor does.
+    Must-Fail { & $module {
+        param($settings, $uuid, $dest, $source)
+        Invoke-VBox $settings @('guestcontrol', $uuid, 'copyto', '--no-replace', '--target-directory', $dest.TrimEnd('/'), $source)
+    } $exportSettings $id $destination $export.Archive } 'Tool operation.*failed'
+    Must-Fail { & $module {
+        param($settings, $uuid, $dest, $source)
+        Copy-ToGuest $settings $uuid 'fixture-password-file' $source $dest
+    } $exportSettings $id $destination $export.Archive } 'Tool operation.*failed'
+    Assert ((Get-FileHash -LiteralPath (Join-Path $staging 'source.tar')).Hash -eq $originalHash) 'Existing guest copy was replaced'
+    foreach ($case in @(
+        @{ Failure='stage'; Message='Creating guest staging directory failed'; Copies=0; Publishes=0 },
+        @{ Failure='copyto-source.tar'; Message='Copying source.tar to guest staging failed'; Copies=1; Publishes=0 },
+        @{ Failure='copyto-manifest.json'; Message='Copying manifest.json to guest staging failed'; Copies=2; Publishes=0 },
+        @{ Failure='copyto-transport.py'; Message='Copying transport.py to guest staging failed'; Copies=3; Publishes=0 },
+        @{ Failure='publish'; Message='Verifying and publishing committed source failed'; Copies=3; Publishes=1 }
+    )) {
+        Set-Content (Join-Path $testRoot 'fail') $case.Failure
+        $before = @(Get-Content (Join-Path $testRoot 'calls.jsonl')).Count
+        $message = ''
+        try {
+            & $module {
+                param($sourceFile, $settings, $uuid, $root)
+                . $sourceFile
+                Send-VMSource $settings $uuid 'fixture-password-file' $root
+            } (Join-Path $toolDir 'Source.ps1') $exportSettings $id $guestRoot | Out-Null
+        } catch { $message = $_.Exception.Message }
+        Assert ($message.Contains($case.Message)) 'Transfer failure did not identify its stage'
+        Assert (-not $message.Contains('fixture-private-detail')) 'Transfer failure exposed raw diagnostics'
+        $failedCalls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | Select-Object -Skip $before | ForEach-Object { ,@($_ | ConvertFrom-Json) })
+        Assert (@($failedCalls | Where-Object { $_[2] -eq 'copyto' }).Count -eq $case.Copies) 'Transfer continued copying after a failure'
+        Assert (@($failedCalls | Where-Object { $_ -contains 'publish' }).Count -eq $case.Publishes) 'Partial transfer reached publication'
+        Remove-Item -LiteralPath (Join-Path $testRoot 'fail')
+    }
     Write-Output 'VM host tests passed.'
 } finally {
     Remove-Item Env:DESKY_FAKE_VBOX_ROOT -ErrorAction SilentlyContinue

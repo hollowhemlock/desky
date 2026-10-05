@@ -77,10 +77,21 @@ for part in [p]+list(__import__('pathlib').Path(p).parents):
 os.makedirs(p,exist_ok=True)
 print(tempfile.mkdtemp(prefix='.incoming-',dir=p))
 '@
-    $incoming = (Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @('-c', $code, $GuestRoot)).Out.Trim()
+    Write-Host 'Creating guest staging directory...'
+    try {
+        $incoming = (Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @('-c', $code, $GuestRoot)).Out.Trim()
+    } catch { throw "Creating guest staging directory failed. $($_.Exception.Message)" }
     if (-not $incoming.StartsWith($GuestRoot.TrimEnd('/') + '/.incoming-') -or $incoming -match '[\r\n]') { throw 'Unexpected guest staging path.' }
-    foreach ($file in $export.Archive, $export.Manifest, $transport) { Copy-ToGuest $Settings $UUID $PasswordFile $file $incoming }
-    $published = (Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @("$incoming/transport.py", 'publish', $incoming, $GuestRoot, $export.Hash)).Out.Trim()
+    foreach ($file in $export.Archive, $export.Manifest, $transport) {
+        $name = [IO.Path]::GetFileName($file)
+        Write-Host "Copying $name to guest staging..."
+        try { Copy-ToGuest $Settings $UUID $PasswordFile $file $incoming }
+        catch { throw "Copying $name to guest staging failed. $($_.Exception.Message)" }
+    }
+    Write-Host 'Verifying and publishing committed source...'
+    try {
+        $published = (Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @("$incoming/transport.py", 'publish', $incoming, $GuestRoot, $export.Hash)).Out.Trim()
+    } catch { throw "Verifying and publishing committed source failed. $($_.Exception.Message)" }
     $expected = $GuestRoot.TrimEnd('/') + '/' + $export.Revision
     if ($published -cne $expected) { throw 'Guest source publication did not return the expected revision directory.' }
     $quoted = "'" + $published.Replace("'", "'\''") + "'"

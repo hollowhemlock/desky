@@ -135,8 +135,11 @@ function Invoke-Guest {
 
 function Copy-ToGuest {
     param($Settings, [string]$UUID, [string]$PasswordFile, [string]$Source, [string]$Destination)
+    # VBox's GuestPath::BuildDestinationPath appends the source basename only
+    # for a trailing separator, even when --target-directory is specified.
+    $directory = $Destination.TrimEnd('/') + '/'
     Invoke-VBox $Settings @('guestcontrol', $UUID, 'copyto', '--username', $Settings.GuestUser, '--passwordfile', $PasswordFile,
-        '--no-replace', '--target-directory', $Destination, $Source) 300 | Out-Null
+        '--no-replace', '--target-directory', $directory, $Source) 300 | Out-Null
 }
 
 function Assert-GuestReady {

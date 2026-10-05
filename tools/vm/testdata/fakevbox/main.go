@@ -2,10 +2,12 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -61,7 +63,45 @@ func main() {
 		data, _ = json.Marshal(state)
 		_ = os.WriteFile(filepath.Join(root, "vm.json"), data, 0600)
 	case "guestcontrol":
-		if len(args) < 3 || args[2] != "run" {
+		if len(args) < 3 {
+			os.Exit(3)
+		}
+		if args[2] == "copyto" {
+			// Match GuestPath::BuildDestinationPath: a directory operand needs
+			// its trailing separator, even with --target-directory.
+			if !strings.HasSuffix(flag("--target-directory"), "/") {
+				fmt.Fprintln(os.Stderr, "Destination already exists and is a directory; fixture-private-detail")
+				os.Exit(1)
+			}
+			source := args[len(args)-1]
+			if failure == "copyto-"+filepath.Base(source) {
+				fmt.Fprintln(os.Stderr, "fixture-private-detail")
+				os.Exit(42)
+			}
+			if !slices.Contains(args, "--no-replace") {
+				os.Exit(46)
+			}
+			data, err := os.ReadFile(source)
+			if err != nil {
+				os.Exit(47)
+			}
+			staging := filepath.Base(strings.TrimSuffix(flag("--target-directory"), "/"))
+			if !strings.HasPrefix(staging, ".incoming-") {
+				os.Exit(49)
+			}
+			target, err := os.OpenFile(filepath.Join(root, staging, filepath.Base(source)), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+			if err != nil {
+				os.Exit(48)
+			}
+			if _, err := target.Write(data); err != nil {
+				panic(err)
+			}
+			if err := target.Close(); err != nil {
+				panic(err)
+			}
+			return
+		}
+		if args[2] != "run" {
 			os.Exit(3)
 		}
 		for i, arg := range args {
@@ -74,6 +114,43 @@ func main() {
 			}
 			switch flag("--exe") {
 			case "/usr/bin/python3":
+				if len(guestArgs) == 3 && guestArgs[0] == "-c" && strings.Contains(guestArgs[1], "tempfile.mkdtemp") {
+					if failure == "stage" {
+						fmt.Fprintln(os.Stderr, "fixture-private-detail")
+						os.Exit(42)
+					}
+					dir, err := os.MkdirTemp(root, ".incoming-")
+					if err != nil {
+						panic(err)
+					}
+					fmt.Println(strings.TrimRight(guestArgs[2], "/") + "/" + filepath.Base(dir))
+					return
+				}
+				if len(guestArgs) == 5 && guestArgs[1] == "publish" {
+					if failure == "publish" {
+						fmt.Fprintln(os.Stderr, "fixture-private-detail")
+						os.Exit(42)
+					}
+					staging := filepath.Join(root, filepath.Base(guestArgs[2]))
+					// Real Linux tests own extraction/integrity. Here all three
+					// copies must finish before publication can be acknowledged.
+					for _, name := range []string{"source.tar", "manifest.json", "transport.py"} {
+						if _, err := os.Stat(filepath.Join(staging, name)); err != nil {
+							os.Exit(50)
+						}
+					}
+					archive, _ := os.ReadFile(filepath.Join(staging, "source.tar"))
+					if fmt.Sprintf("%x", sha256.Sum256(archive)) != guestArgs[4] {
+						os.Exit(51)
+					}
+					data, _ := os.ReadFile(filepath.Join(staging, "manifest.json"))
+					var manifest struct{ Revision string }
+					if json.Unmarshal(data, &manifest) != nil || manifest.Revision == "" {
+						os.Exit(52)
+					}
+					fmt.Println(strings.TrimRight(guestArgs[3], "/") + "/" + manifest.Revision)
+					return
+				}
 				if len(guestArgs) == 2 && guestArgs[0] == "-c" && strings.Contains(guestArgs[1], "os.path.expanduser") {
 					if failure == "live-session" {
 						os.Exit(45)

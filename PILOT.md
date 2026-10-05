@@ -597,3 +597,26 @@ global Codex configuration needs to be rolled back.
 - The Windows host suite, twelve Linux guest tests, shell syntax check and full
   native verification runner pass. Only read-only status was exercised against
   real VirtualBox; no VM settings, disks, media or old installer files were changed.
+
+### 2026-10-05: repair Guest Control copy destinations
+
+- The user reported a generic `guestcontrol` exit 1 during provisioning. The
+  local committed export and transport script were present; read-only host checks
+  found `ubuntu-dev` running with Guest Additions 7.2.20 matching the host.
+  Authenticated transfer could not be repeated without the user's local password
+  prompt, so its original failing stage was not directly observed.
+- Inspection found a concrete copy-target defect: VirtualBox's
+  [GuestPath::BuildDestinationPath](https://github.com/VirtualBox/virtualbox/blob/main/src/VBox/Main/src-client/GuestCtrlPrivate.cpp)
+  appends the source basename only when the destination ends in a separator.
+  The CLI forwards `--target-directory` without adding one. The helper now
+  normalizes the guest directory to end in `/`, retaining `--no-replace`.
+- Provisioning now identifies staging, individual file copies and publication
+  in progress/error messages without revealing raw guest diagnostics. Regression
+  coverage exercises the real host transfer functions against the fake, rather
+  than relying only on the lifecycle delivery stub. It covers all three copies,
+  paths with spaces/Unicode/metacharacters, refusing overwrite, failures at each
+  stage and preventing publication after a partial copy.
+- Real transfer/bootstrap and observed desktop qualification remain open until
+  the user retries provisioning and completes the guest-side workflow.
+- The expanded Windows host suite and full native verification runner pass.
+  The existing nonfatal Go module metadata-cache permission warning remains.

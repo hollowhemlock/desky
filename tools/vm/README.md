@@ -49,6 +49,10 @@ also prevent source transfer.
 
 `provision` requests the normal user's password at a local masked prompt. Keep
 it in your password manager, never in JSON, Git, command arguments or chat.
+It reports staging, each file copy and source publication separately. If a
+transfer fails, its error identifies the stage while keeping raw guest diagnostics
+private. Retry `provision` after addressing the failure; each attempt uses a new
+staging directory, and an incomplete transfer is never published.
 Run the printed bootstrap command inside Ubuntu's logged-in desktop terminal.
 Bootstrap uses standard sudo prompts to install missing Git/compiler tools, Go,
 VS Code, Firefox, GNOME Terminal and GNOME Text Editor. It checks actual
@@ -167,9 +171,12 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/vm/tests -p 'tes
 
 CI adds these checks to the existing three-platform workflow. Host tests use a
 fake VirtualBox executable, synthetic credentials and stubbed source/report
-delivery to check orchestration and preservation. Real source export and Linux
-publication/integrity have separate tests. Windows retains bounded test artifacts
-for diagnosis; none contain real credentials. These checks are not desktop acceptance.
+delivery to check lifecycle orchestration and preservation. Separate host tests
+exercise real source export and transfer orchestration against the fake, including
+VirtualBox's trailing-slash directory semantics, no-replace behavior and failures
+at every transfer stage. Linux tests cover actual publication/integrity.
+Windows retains bounded test artifacts for diagnosis; none contain real
+credentials. These checks are not desktop acceptance.
 
 | Contract | Evidence |
 |---|---|
