@@ -200,8 +200,8 @@ def ubuntu_desktop():
     if sys.platform != "linux" or os.getuid() == 0:
         raise ValueError("Run as your normal Ubuntu desktop user, not root")
     release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
-    if release.get("ID", "").strip('"') != "ubuntu" or release.get("VERSION_ID", "").strip('"') != "24.04":
-        raise ValueError("This bootstrap supports Ubuntu 24.04 only")
+    if release.get("ID", "").strip('"') != "ubuntu" or release.get("VERSION_ID", "").strip('"') not in ("26.04", "24.04"):
+        raise ValueError("This bootstrap supports Ubuntu 26.04 and 24.04 LTS only")
     if output(["uname", "-m"]) != "x86_64":
         raise ValueError("This bootstrap supports amd64 only")
 

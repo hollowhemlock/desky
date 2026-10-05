@@ -104,7 +104,9 @@ func main() {
 				fmt.Fprint(os.Stderr, result.Err)
 				os.Exit(result.Code)
 			}
-			fmt.Println("OSTypeId=\"Ubuntu24_LTS_64\"\nOSVersion=\"24.04.5.1\"\nIsInstallSupported=\"on\"")
+			fmt.Println("OSTypeId=\"Ubuntu25_64\"\nOSVersion=\"26.04.1 LTS \\\"Resolute Raccoon\\\"\"\nIsInstallSupported=\"on\"")
+			fmt.Fprintln(os.Stderr, "VBoxManage.exe: error: Code E_NOTIMPL (0x80004001) (extended info not available)\nVBoxManage.exe: error: Context: \"DetectIsoOS()\" at line 2235 of file VBoxManageMisc.cpp")
+			os.Exit(1)
 		} else {
 			state["VMState"] = "running"
 		}

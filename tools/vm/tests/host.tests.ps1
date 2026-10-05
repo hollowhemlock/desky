@@ -26,8 +26,18 @@ log_command_in_target() { :; }
 exit ${MY_EXITCODE}
 '@ | Set-Content (Join-Path $vendorDir 'ubuntu_postinstall.sh')
     Set-Content (Join-Path $testRoot 'VBoxGuestAdditions.iso') 'fixture'
-    $iso = Join-Path $testRoot 'ubuntu-24.04-desktop-amd64.iso'
-    Set-Content $iso 'fixture ISO'
+    $iso = Join-Path $testRoot 'ubuntu-26.04.1-desktop-amd64.iso'
+    $isoFiles = Join-Path $testRoot 'iso contents'
+    [IO.Directory]::CreateDirectory((Join-Path $isoFiles '.disk')) | Out-Null
+    [IO.Directory]::CreateDirectory((Join-Path $isoFiles 'boot/grub')) | Out-Null
+    function New-MediaFixture([string]$Release = '26.04.1', [string]$BootTitle = 'Try or Install Ubuntu', [string]$BuildDate = '20260826') {
+        [IO.File]::WriteAllText((Join-Path $isoFiles '.disk/info'), "Ubuntu $Release LTS `"Fixture`" - Release amd64 ($BuildDate)")
+        [IO.File]::WriteAllText((Join-Path $isoFiles 'boot/grub/grub.cfg'), "menuentry `"$BootTitle`" {`n linux /casper/vmlinuz --- quiet splash`n initrd /casper/initrd`n}`n")
+        # A small archive exercises the real Windows reader; VBox itself is fake.
+        & (Join-Path ([Environment]::GetFolderPath('System')) 'tar.exe') -cf $iso -C $isoFiles .disk/info boot/grub/grub.cfg
+        if ($LASTEXITCODE) { throw 'Media fixture archive failed' }
+    }
+    New-MediaFixture
     $s = Get-VMSettings $testRoot @{ VBoxPath = $fake; IsoPath = $iso }
     $s.StateRoot = Join-Path $testRoot 'private'
     Assert ($s.MemoryMB -eq 8192 -and $s.GuestUser -eq 'dev') 'Defaults differ'
@@ -53,14 +63,20 @@ exit ${MY_EXITCODE}
     # A failed detector may still print plausible metadata. Never accept it or
     # expose its raw diagnostics, and keep unsupported/missing metadata actionable.
     $detectionFixture = Join-Path $testRoot 'detect-result.json'
-    $supported = "OSTypeId=`"Ubuntu24_LTS_64`"`nOSVersion=`"24.04.5`"`nIsInstallSupported=`"on`""
-    $unsupported = "OSTypeId=`"Ubuntu25_64`"`nOSVersion=`"26.04.1 LTS Ubuntu`"`nIsInstallSupported=`"on`""
+    $supported = "OSTypeId=`"Ubuntu25_64`"`nOSVersion=`"26.04.1 LTS Ubuntu`"`nIsInstallSupported=`"on`""
+    $unsupported = "OSTypeId=`"Ubuntu25_64`"`nOSVersion=`"25.10 Ubuntu`"`nIsInstallSupported=`"on`""
+    $partial = "VBoxManage.exe: error: Code E_NOTIMPL (0x80004001) (extended info not available)`r`nVBoxManage.exe: error: Context: `"DetectIsoOS()`" at line 2235 of file VBoxManageMisc.cpp`r`n"
     foreach ($case in @(
-        @{ Code=1; Out=$unsupported; Err='Code E_NOTIMPL: fixture-private-detail'; Pattern='ISO detection failed.*E_NOTIMPL.*Detected Ubuntu 26\.04\.1.*requires.*24\.04' },
-        @{ Code=1; Out=$supported; Err='fixture-private-detail'; Pattern='ISO detection failed.*Detected Ubuntu 24\.04\.5' },
-        @{ Code=1; Out=''; Err='fixture-private-detail'; Pattern='ISO detection failed.*requires.*24\.04' },
-        @{ Code=0; Out=$unsupported; Err=''; Pattern='Detected Ubuntu 26\.04\.1.*requires.*24\.04' },
-        @{ Code=0; Out=''; Err=''; Pattern='requires.*24\.04' }
+        @{ Code=1; Out=$unsupported; Err='Code E_NOTIMPL: fixture-private-detail'; Pattern='ISO detection failed.*E_NOTIMPL.*Detected Ubuntu 25\.10.*requires.*26\.04' },
+        @{ Code=1; Out=$supported; Err='fixture-private-detail'; Pattern='ISO detection failed.*Detected Ubuntu 26\.04\.1' },
+        @{ Code=1; Out=$supported; Err=($partial + 'Failed to open ISO: fixture-private-detail'); Pattern='ISO detection failed' },
+        @{ Code=1; Out=$supported.Replace('"on"', '"off"'); Err=$partial; Pattern='requires.*26\.04' },
+        @{ Code=1; Out=$supported.Replace('Ubuntu25_64', 'Ubuntu26_arm64'); Err=$partial; Pattern='requires.*26\.04' },
+        @{ Code=1; Out=''; Err=$partial; Pattern='requires.*26\.04' },
+        @{ Code=2; Out=$supported; Err=$partial; Pattern='ISO detection failed' },
+        @{ Code=1; Out=''; Err='fixture-private-detail'; Pattern='ISO detection failed.*requires.*26\.04' },
+        @{ Code=0; Out=$unsupported; Err=''; Pattern='Detected Ubuntu 25\.10.*requires.*26\.04' },
+        @{ Code=0; Out=''; Err=''; Pattern='requires.*26\.04' }
     )) {
         $case | ConvertTo-Json | Set-Content -LiteralPath $detectionFixture
         $failure = $null
@@ -72,11 +88,34 @@ exit ${MY_EXITCODE}
         Assert ($detectionCalls -notmatch 'createvm|createmedium|modifyvm|storageattach|"install"') 'Rejected ISO mutated a VM'
     }
     Remove-Item -LiteralPath $detectionFixture
+    # The known partial result still requires independent matching desktop media.
+    New-MediaFixture '24.04.5.1'
+    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ISO contents do not confirm'
+    New-MediaFixture '26.04.1' 'Try or Install Ubuntu Server'
+    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ISO contents do not confirm'
+    [IO.File]::WriteAllText($iso, 'not an archive')
+    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ISO contents do not confirm'
+    Assert (-not (Test-Path -LiteralPath $s.StateRoot)) 'Uncorroborated ISO wrote installation state'
+    # Keep the previous LTS path working, including four-component point releases.
+    New-MediaFixture '24.04.5.1'
+    @{ Code=0; Out=$supported.Replace('26.04.1', '24.04.5.1'); Err='' } | ConvertTo-Json | Set-Content $detectionFixture
+    $priorMedia = & $module { param($settings) Get-InstallationMedia $settings } $s
+    Assert ($priorMedia.Release -eq '24.04.5.1' -and $priorMedia.Detection -eq 'complete') 'Prior LTS media was rejected'
+    New-MediaFixture '24.04.1' 'Try or Install Ubuntu' '20240827.1'
+    @{ Code=0; Out=$supported.Replace('26.04.1', '24.04.1'); Err='' } | ConvertTo-Json | Set-Content $detectionFixture
+    $respunMedia = & $module { param($settings) Get-InstallationMedia $settings } $s
+    Assert ($respunMedia.Release -eq '24.04.1') 'A valid ISO build-date respin suffix was rejected'
+    New-MediaFixture
+    @{ Code=0; Out=$supported; Err='' } | ConvertTo-Json | Set-Content $detectionFixture
+    $completeMedia = & $module { param($settings) Get-InstallationMedia $settings } $s
+    Assert ($completeMedia.Release -eq '26.04.1' -and $completeMedia.Detection -eq 'complete') 'Complete detection was rejected'
+    Remove-Item -LiteralPath $detectionFixture
     Invoke-VMAction 'create' $s '' '' | Out-Null
     $records = @(Get-ChildItem $s.StateRoot -Filter '*.json')
     Assert ($records.Count -eq 1) 'Ownership record missing'
     $record = Get-Content $records[0].FullName -Raw | ConvertFrom-Json -AsHashtable
     Assert ($record.Stage -eq 'installing') 'Installation intent missing'
+    Assert ($record.Release -eq '26.04.1' -and $record.Detection -eq 'known-linux-partial') 'Validated media identity was not recorded'
     Invoke-VMAction 'create' $s '' '' | Out-Null
     Invoke-VMAction 'start' $s '' '' | Out-Null
     $calls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | ForEach-Object { ,($_ | ConvertFrom-Json) })

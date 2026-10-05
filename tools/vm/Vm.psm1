@@ -251,14 +251,9 @@ function Complete-InstallationCleanup {
     Save-VMRecord (Join-Path $Settings.StateRoot "$($Record.UUID).json") $Record
 }
 
-function New-ManagedVM {
-    param($Settings, $Info, $Record)
-    if ($Info -and (-not $Record -or $Record.Stage -ne 'configuring')) {
-        Write-Output 'VM already exists. Use status, start or provision; its OS will not be reinstalled.'
-        return
-    }
-    if ($Record -and $Record.Stage -ne 'configuring') { throw 'A prior installation attempt exists but its VM is missing; inspect the ownership record. No recreation was attempted.' }
-    if (-not (Test-Path -LiteralPath $Settings.IsoPath -PathType Leaf)) { throw 'Supply -IsoPath with a local Ubuntu 24.04 Desktop amd64 ISO.' }
+function Get-InstallationMedia {
+    param($Settings)
+    if (-not (Test-Path -LiteralPath $Settings.IsoPath -PathType Leaf)) { throw 'Supply -IsoPath with a local Ubuntu 26.04 LTS Desktop amd64 ISO (24.04 is also accepted).' }
     $iso = [IO.Path]::GetFullPath($Settings.IsoPath)
     $detection = Invoke-VBox $Settings @('unattended', 'detect', "--iso=$iso", '--machine-readable') -AllowFailure
     $detected = ConvertFrom-VBoxLines $detection.Out
@@ -266,16 +261,43 @@ function New-ManagedVM {
     if ($detected.ContainsKey('OSVersion') -and $detected.OSVersion -match '^([0-9]{2}\.[0-9]{2}(?:\.[0-9]{1,3}){0,2})(?=\s|$)') { $release = $Matches[1] }
     $ubuntu64 = $detected.ContainsKey('OSTypeId') -and $detected.OSTypeId -match '^Ubuntu[A-Za-z0-9_]*_64$'
     $description = if ($ubuntu64 -and $release) { "Detected Ubuntu $release (64-bit). " } else { '' }
-    $requirement = 'This helper requires a local Ubuntu 24.04 LTS Desktop amd64 ISO and successful VirtualBox unattended detection.'
-    # Detection can return plausible metadata together with a failure. Report only
-    # validated version fields and a known error marker, never raw tool diagnostics.
-    if ($detection.Code -ne 0) {
+    $requirement = 'This helper requires a validated Ubuntu 26.04 or 24.04 LTS Desktop amd64 ISO.'
+    # VirtualBox maps incomplete Linux detection to E_NOTIMPL; its prepare()
+    # explicitly accepts that result. Match only the bare partial-detection
+    # diagnostic, not errors opening/parsing an ISO that use the same HRESULT.
+    # https://github.com/VirtualBox/virtualbox/blob/master/src/VBox/Main/src-server/UnattendedImpl.cpp
+    $partial = $detection.Code -eq 1 -and $detection.Err.Trim() -match '\AVBoxManage(?:\.exe)?: error: Code E_NOTIMPL \(0x80004001\) \(extended info not available\)\r?\nVBoxManage(?:\.exe)?: error: Context: "DetectIsoOS\(\)" at line [0-9]+ of file VBoxManageMisc\.cpp\z'
+    if ($detection.Code -ne 0 -and -not $partial) {
         $reason = if ($detection.Err -match '\bE_NOTIMPL\b') { '; E_NOTIMPL (operation not implemented)' } else { '' }
         throw "VirtualBox ISO detection failed (exit $($detection.Code)$reason). $description$requirement This attempt made no VM changes. See tools/vm/README.md."
     }
-    if (-not $detected.ContainsKey('IsInstallSupported') -or $detected.IsInstallSupported -ne 'on' -or $release -notmatch '^24\.04(?:\.|$)' -or -not $ubuntu64 -or [IO.Path]::GetFileName($iso) -notmatch 'desktop-amd64\.iso$') {
+    if (-not $detected.ContainsKey('IsInstallSupported') -or $detected.IsInstallSupported -ne 'on' -or $release -notmatch '^(?:26|24)\.04(?:\.|$)' -or -not $ubuntu64 -or [IO.Path]::GetFileName($iso) -notmatch 'desktop-amd64\.iso$') {
         throw "$description$requirement This attempt made no VM changes. See tools/vm/README.md."
     }
+    # Independently corroborate release, architecture and desktop boot entry from
+    # the media itself, without mounting it or extracting files onto the host.
+    $tar = Join-Path ([Environment]::GetFolderPath('System')) 'tar.exe'
+    if (-not (Test-Path -LiteralPath $tar -PathType Leaf)) { throw 'Windows built-in tar.exe is required to validate the ISO contents.' }
+    $disc = Invoke-VMProcess $tar @('-xOf', $iso, '.disk/info') -AllowFailure
+    $boot = Invoke-VMProcess $tar @('-xOf', $iso, 'boot/grub/grub.cfg') -AllowFailure
+    $discPattern = '\AUbuntu ' + [regex]::Escape($release) + ' LTS "[^"\r\n]+" - Release amd64 \([0-9]{8}(?:\.[0-9]{1,3})?\)\s*\z'
+    if ($disc.Code -ne 0 -or $boot.Code -ne 0 -or $disc.Out -notmatch $discPattern -or
+        $boot.Out -notmatch '(?m)^menuentry ["'']Try or Install Ubuntu["'']\s*\{' -or
+        $boot.Out -notmatch '(?m)^\s*linux\s+/casper/vmlinuz\s' -or $boot.Out -notmatch '(?m)^\s*initrd\s+/casper/initrd\s*$') {
+        throw 'ISO contents do not confirm the detected Ubuntu LTS Desktop amd64 release. This attempt made no VM changes.'
+    }
+    return @{ Path = $iso; Release = $release; OSTypeId = $detected.OSTypeId; Detection = $(if ($partial) { 'known-linux-partial' } else { 'complete' }) }
+}
+
+function New-ManagedVM {
+    param($Settings, $Info, $Record)
+    if ($Info -and (-not $Record -or $Record.Stage -ne 'configuring')) {
+        Write-Output 'VM already exists. Use status, start or provision; its OS will not be reinstalled.'
+        return
+    }
+    if ($Record -and $Record.Stage -ne 'configuring') { throw 'A prior installation attempt exists but its VM is missing; inspect the ownership record. No recreation was attempted.' }
+    $media = Get-InstallationMedia $Settings
+    $iso = $media.Path
     $vendor = Join-Path (Split-Path $Settings.VBoxPath) 'UnattendedTemplates/ubuntu_postinstall.sh'
     $additions = Join-Path (Split-Path $Settings.VBoxPath) 'VBoxGuestAdditions.iso'
     if (-not (Test-Path -LiteralPath $additions)) { throw 'Matching bundled Guest Additions ISO is missing.' }
@@ -294,7 +316,7 @@ function New-ManagedVM {
             throw 'The new machine folder already exists; choose another name or inspect it. Existing disks are never adopted.'
         }
         $Record = @{ UUID = [guid]::NewGuid().ToString(); Name = $Settings.VmName; Attempt = $attempt; Stage = 'configuring'; Cleaned = $false
-            ISO = $iso; ISOHash = $isoHash; AdditionsISO = $additions; Base = $base; GuestUser = $Settings.GuestUser
+            ISO = $iso; ISOHash = $isoHash; Release = $media.Release; Detection = $media.Detection; AdditionsISO = $additions; Base = $base; GuestUser = $Settings.GuestUser
             MemoryMB = $Settings.MemoryMB; CPUs = $Settings.CPUs; DiskGB = $Settings.DiskGB
             VendorHash = (Get-FileHash -LiteralPath $vendor).Hash; Version = (Invoke-VBox $Settings @('--version')).Out.Trim() }
         New-PrivateDirectory $Settings.StateRoot
@@ -307,7 +329,7 @@ function New-ManagedVM {
         if (Test-Path -LiteralPath (Join-Path $Record.Base $Record.Name)) {
             throw 'An unregistered machine folder exists from an ambiguous creation; inspect it before proceeding.'
         }
-        Invoke-VBox $Settings @('createvm', '--name', $Record.Name, '--uuid', $Record.UUID, '--ostype', $detected.OSTypeId, '--basefolder', $Record.Base, '--register') | Out-Null
+        Invoke-VBox $Settings @('createvm', '--name', $Record.Name, '--uuid', $Record.UUID, '--ostype', $media.OSTypeId, '--basefolder', $Record.Base, '--register') | Out-Null
         $Info = Get-VMInfo $Settings
     }
     if ($Info.UUID -ne $Record.UUID -or $Info.VMState -ne 'poweroff') { throw 'VM identity/state does not permit resuming configuration.' }

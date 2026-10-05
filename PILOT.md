@@ -534,3 +534,33 @@ global Codex configuration needs to be rolled back.
   do not establish real Ubuntu installation or desktop qualification.
 - Host regressions and the full Windows verification runner pass. Focused
   self-review and whitespace checks found no further defects in this repair.
+
+### 2026-10-05: Ubuntu 26.04.1 target and partial detection
+
+- The user selected Ubuntu 26.04.1 LTS. Host creation and guest bootstrap now
+  accept Ubuntu 26.04 while retaining Ubuntu 24.04 compatibility. Hardware,
+  credential handling and finalization requirements remain unchanged.
+- Further investigation corrects the preceding interpretation of `E_NOTIMPL`:
+  [VirtualBox's detector](https://github.com/VirtualBox/virtualbox/blob/master/src/VBox/Main/src-server/UnattendedImpl.cpp)
+  converts incomplete Linux detection to that code, and its installer `prepare()`
+  explicitly permits it. The prior exit-code-only guard was too strict. The helper
+  now permits only the exact bare partial-detection diagnostic together with
+  supported metadata and independent matching release/architecture/desktop boot
+  information read from the ISO using Windows' built-in archive reader. Other
+  errors carrying the same code are still rejected.
+- Read-only validation of the local Ubuntu 26.04.1 amd64 ISO succeeds with
+  VirtualBox 7.2.20. The vendor finalization template structure is also accepted.
+  The detected `Ubuntu25_64` hardware profile is retained; the media's 26.04.1
+  release is checked independently and recorded alongside the detection outcome.
+- Host tests cover the real partial-result shape, complete detection, retained
+  24.04 support, unsupported releases/architectures, added error details, missing
+  metadata, inconsistent ISO contents and server boot entries. Eleven Linux
+  guest tests pass, including normal-user/amd64 checks for both LTS releases.
+  No actual installation, package bootstrap or desktop qualification is inferred
+  from these checks. Installation still needs the user's local masked password
+  prompt; no VM has been created by this task. Increment 4 remains open.
+- Fresh review identified that older official Ubuntu ISO labels can have a
+  numeric build-date respin suffix. The parser now accepts that convention,
+  with a regression using the Ubuntu 24.04.1 label's `20240827.1` build date.
+  The host suite and full Windows verification runner pass; the earlier nonfatal
+  module metadata-cache permission warning remains unrelated to this change.

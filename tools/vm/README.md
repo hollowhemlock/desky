@@ -4,25 +4,31 @@ These optional development tools create or reuse a VM and prepare Desky desktop
 qualification. They are separate from `desk`: the application never installs or
 manages its users' environments.
 
-Requirements: Windows, PowerShell **7.4+**, Git, VirtualBox **7.2**, and a local
-Ubuntu **24.04 LTS Desktop amd64** ISO. Ubuntu includes the required Python 3.12.
+Requirements: Windows with its built-in `tar.exe`, PowerShell **7.4+**, Git,
+VirtualBox **7.2**, and a local **Ubuntu 26.04 LTS Desktop amd64** ISO. The current
+target is **26.04.1**; Ubuntu 24.04 LTS remains accepted for existing workflows.
+Both releases include Python 3.12 or newer, as required by the guest scripts.
 Package installation requires guest internet access. The helper does not install
 VirtualBox, download operating systems, enable SSH or configure shared folders.
 
 **Verification status:** deterministic host and Linux guest tests exercise the
 helper. Real unattended installation, Guest Control transfer, repeated package
-bootstrap and desktop qualification remain unverified. The local ISO discovered
-during implementation was Ubuntu 26.04.1, outside this workflow's boundary.
+bootstrap and desktop qualification remain unverified. The local Ubuntu 26.04.1
+ISO passes the host's read-only media validation with VirtualBox 7.2.20.
 Helper tests and WSL checks do not qualify desktops; see [PILOT](../../PILOT.md).
 
 If `create` reports an ISO detection failure, that attempt made no VM changes.
-VirtualBox can print image metadata even when detection fails; the
-helper requires a successful exit as well as supported metadata. Ubuntu 26.04.1
-is outside this workflow's supported release and produced `E_NOTIMPL` during
-local detection. Use an [Ubuntu 24.04 LTS Desktop amd64 image](https://releases.ubuntu.com/24.04/)
-instead. If detection also fails for that release, verify the ISO against Ubuntu's
-published checksum and check the installed VirtualBox 7.2 build before retrying.
-Renaming an ISO does not change its detected release.
+VirtualBox's Linux detector can return a bare `E_NOTIMPL` despite identifying
+installable media; [its installer explicitly accepts this partial result](https://github.com/VirtualBox/virtualbox/blob/master/src/VBox/Main/src-server/UnattendedImpl.cpp).
+The helper accepts that exact diagnostic only with a supported Ubuntu release,
+amd64 type, `IsInstallSupported="on"`, and matching `.disk/info` and Desktop GRUB
+boot entries read independently from the ISO. It records the release and whether
+detection was complete or this known partial result. Other failures, incomplete
+metadata, mismatches and server images are rejected. A successful detection exit
+also requires those content checks. The `Ubuntu25_64` type returned for 26.04.1 is
+VirtualBox's older hardware profile; the detected release still controls acceptance.
+For rejected media, verify the ISO against Ubuntu's published checksum and check
+the installed VirtualBox 7.2 build. Renaming an ISO does not change its contents.
 
 ## First run
 
@@ -31,7 +37,7 @@ these tools:
 
 ```powershell
 ./tools/vm/manage.ps1 status
-./tools/vm/manage.ps1 create -IsoPath 'D:\Downloads\ubuntu-24.04.5.1-desktop-amd64.iso'
+./tools/vm/manage.ps1 create -IsoPath 'D:\Downloads\ubuntu-26.04.1-desktop-amd64.iso'
 ```
 
 Enter the guest password at the local masked prompt and keep it in your password

@@ -141,6 +141,28 @@ class ObservationTests(unittest.TestCase):
             self.assertEqual(guest.observe("Question"), "unverified")
 
 
+@unittest.skipUnless(sys.platform == "linux", "Linux guest prerequisites")
+class GuestPlatformTests(unittest.TestCase):
+    def test_accepted_lts_and_rejected_platforms(self):
+        for distro, version, architecture, uid, accepted in (
+            ("ubuntu", "26.04", "x86_64", 1000, True),
+            ("ubuntu", "24.04", "x86_64", 1000, True),
+            ("ubuntu", "25.10", "x86_64", 1000, False),
+            ("debian", "26.04", "x86_64", 1000, False),
+            ("ubuntu", "26.04", "aarch64", 1000, False),
+            ("ubuntu", "26.04", "x86_64", 0, False),
+        ):
+            with self.subTest(distro=distro, version=version, architecture=architecture, uid=uid), \
+                    patch.object(guest.os, "getuid", return_value=uid), \
+                    patch.object(Path, "read_text", return_value=f'ID={distro}\nVERSION_ID="{version}"\n'), \
+                    patch.object(guest, "output", return_value=architecture):
+                if accepted:
+                    guest.ubuntu_desktop()
+                else:
+                    with self.assertRaises(ValueError):
+                        guest.ubuntu_desktop()
+
+
 @unittest.skipUnless(sys.platform == "linux", "Bash and Unix account command fixtures")
 class FinalizationTests(unittest.TestCase):
     def test_failed_account_checks_do_not_publish_success(self):

@@ -164,9 +164,9 @@ not a desktop support claim. See PILOT.md for actual check results and the exact
 desktop matrix. Complete the remaining native desktop smoke checks before marking
 this increment fully qualified; no installer or release publication is included.
 
-Optional [VM development tooling](tools/vm/README.md) prepares an Ubuntu Desktop
-guest from Windows, transfers committed source and records isolated qualification
-runs. This is separate from Desky's application boundary. Deterministic helper
+Optional [VM development tooling](tools/vm/README.md) prepares an Ubuntu 26.04.1
+LTS Desktop guest from Windows, transfers committed source and records isolated
+qualification runs. This is separate from Desky's application boundary. Deterministic helper
 checks do not complete native desktop acceptance; real installation, provisioning
 and observed qualification remain explicit gates.
 
