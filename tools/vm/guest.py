@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -199,6 +200,13 @@ def output(args):
 def ubuntu_desktop():
     if sys.platform != "linux" or os.getuid() == 0:
         raise ValueError("Run as your normal Ubuntu desktop user, not root")
+    if any(token.lower() in ("boot=casper", "boot=live") for token in shlex.split(Path("/proc/cmdline").read_text())):
+        raise ValueError("Boot the installed Ubuntu system, not live installation media")
+    # Current Ubuntu live media can omit boot=casper and still use an overlay root.
+    mounts = (line.split() for line in Path("/proc/mounts").read_text().splitlines())
+    roots = [mount[2] for mount in mounts if len(mount) >= 3 and mount[1] == "/"]
+    if not roots or any(kind in ("overlay", "aufs", "squashfs", "tmpfs", "ramfs", "rootfs") for kind in roots):
+        raise ValueError("Boot the installed Ubuntu system with a persistent root filesystem")
     release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
     if release.get("ID", "").strip('"') != "ubuntu" or release.get("VERSION_ID", "").strip('"') not in ("26.04", "24.04"):
         raise ValueError("This bootstrap supports Ubuntu 26.04 and 24.04 LTS only")

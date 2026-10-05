@@ -2,10 +2,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidateSet('status', 'create', 'start', 'provision', 'collect')][string]$Action,
-    [string]$Config, [string]$VmName, [string]$IsoPath, [string]$BaseFolder,
+    [ValidateSet('status', 'start', 'provision', 'collect')][string]$Action,
+    [string]$Config, [string]$VmName,
     [string]$GuestUser, [string]$GuestRoot, [string]$VBoxPath,
-    [int]$MemoryMB, [int]$CPUs, [int]$DiskGB,
     [string]$Revision, [string]$RunId
 )
 $ErrorActionPreference = 'Stop'

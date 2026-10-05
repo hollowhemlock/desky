@@ -154,7 +154,11 @@ class GuestPlatformTests(unittest.TestCase):
         ):
             with self.subTest(distro=distro, version=version, architecture=architecture, uid=uid), \
                     patch.object(guest.os, "getuid", return_value=uid), \
-                    patch.object(Path, "read_text", return_value=f'ID={distro}\nVERSION_ID="{version}"\n'), \
+                    patch.object(Path, "read_text", autospec=True, side_effect=lambda p: {
+                        "/etc/os-release": f'ID={distro}\nVERSION_ID="{version}"\n',
+                        "/proc/cmdline": "root=UUID=fixture ro",
+                        "/proc/mounts": "/dev/sda2 / ext4 rw 0 0\n",
+                    }[str(p)]), \
                     patch.object(guest, "output", return_value=architecture):
                 if accepted:
                     guest.ubuntu_desktop()
@@ -162,41 +166,22 @@ class GuestPlatformTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         guest.ubuntu_desktop()
 
+    def test_live_installer_sessions_are_rejected(self):
+        for command_line in ('boot=casper quiet splash', 'BOOT=casper persistent', 'boot=live', '"boot=casper"'):
+            with self.subTest(command_line=command_line), patch.object(guest.os, "getuid", return_value=1000), \
+                    patch.object(Path, "read_text", return_value=command_line):
+                with self.assertRaisesRegex(ValueError, "Boot the installed Ubuntu"):
+                    guest.ubuntu_desktop()
 
-@unittest.skipUnless(sys.platform == "linux", "Bash and Unix account command fixtures")
-class FinalizationTests(unittest.TestCase):
-    def test_failed_account_checks_do_not_publish_success(self):
-        finalizer = (Path(__file__).parents[1] / "finalize.sh").read_text()
-        for failure in ("passwd", "unlocked", "group", "sudo", "", "vendor"):
-            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                binaries = root / "bin"
-                binaries.mkdir()
-                scripts = {
-                    "passwd": '#!/bin/sh\n[ "$FAIL" = passwd ] && exit 1\nif [ "$1" = --status ]; then if [ "$FAIL" = unlocked ]; then echo "root P"; else echo "root L"; fi; fi\nexit 0\n',
-                    "id": '#!/bin/sh\nif [ "$FAIL" = group ]; then echo dev; else echo "dev sudo"; fi\n',
-                    "sudo": '#!/bin/sh\n[ "$FAIL" != sudo ]\n',
-                    "chown": '#!/bin/sh\nexit 0\n',
-                    "install": '#!/bin/sh\nshift 7\nmkdir -p "$1"\n',
-                }
-                for name, source in scripts.items():
-                    path = binaries / name
-                    path.write_text(source)
-                    path.chmod(0o755)
-                attempt = "a" * 8 + "-" + "b" * 4 + "-" + "c" * 4 + "-" + "d" * 4 + "-" + "e" * 12
-                script = finalizer.replace("__GUEST_USER__", "dev").replace("__ATTEMPT__", attempt)
-                script = script.replace("/var/lib/desky-vm", str(root / "records"))
-                vendor_exit = 1 if failure == "vendor" else 0
-                script = f'if [ {vendor_exit} = 0 ]; then\n(\n{script}\n)\nelse exit 1; fi\n'
-                env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ["PATH"], FAIL=failure)
-                result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
-                record = root / "records/installed.json"
-                if failure:
-                    self.assertNotEqual(result.returncode, 0, result.stderr)
-                    self.assertFalse(record.exists())
-                else:
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(json.loads(record.read_text()), {"attempt": attempt, "user": "dev", "root_locked": True, "sudo": True})
+    def test_live_overlay_without_boot_option_is_rejected(self):
+        # Ubuntu 26.04.1's actual GRUB entry has no boot=casper/live option.
+        for mounts in ("overlay / overlay rw 0 0\n", "/dev/loop0 / squashfs ro 0 0\n",
+                       "tmpfs / tmpfs rw 0 0\n", "missing root mount\n"):
+            with self.subTest(mounts=mounts), patch.object(guest.os, "getuid", return_value=1000), \
+                    patch.object(Path, "read_text", autospec=True, side_effect=lambda p: mounts
+                                 if str(p) == "/proc/mounts" else "BOOT_IMAGE=/casper/vmlinuz --- quiet splash"):
+                with self.assertRaisesRegex(ValueError, "persistent root filesystem"):
+                    guest.ubuntu_desktop()
 
 
 if __name__ == "__main__":

@@ -16,159 +16,121 @@ try {
     $fake = Join-Path $testRoot 'VBoxManage.exe'
     & go build -o $fake (Join-Path $toolDir 'testdata/fakevbox/main.go')
     if ($LASTEXITCODE) { throw 'Fake VirtualBox build failed' }
-    $vendorDir = Join-Path $testRoot 'UnattendedTemplates'
-    [IO.Directory]::CreateDirectory($vendorDir) | Out-Null
-    @'
-#!/bin/bash
-MY_EXITCODE=0
-if [ "$1" = "--direct" ]; then MY_TARGET="/"; else MY_TARGET="/target"; fi
-log_command_in_target() { :; }
-exit ${MY_EXITCODE}
-'@ | Set-Content (Join-Path $vendorDir 'ubuntu_postinstall.sh')
-    Set-Content (Join-Path $testRoot 'VBoxGuestAdditions.iso') 'fixture'
-    $iso = Join-Path $testRoot 'ubuntu-26.04.1-desktop-amd64.iso'
-    $isoFiles = Join-Path $testRoot 'iso contents'
-    [IO.Directory]::CreateDirectory((Join-Path $isoFiles '.disk')) | Out-Null
-    [IO.Directory]::CreateDirectory((Join-Path $isoFiles 'boot/grub')) | Out-Null
-    function New-MediaFixture([string]$Release = '26.04.1', [string]$BootTitle = 'Try or Install Ubuntu', [string]$BuildDate = '20260826') {
-        [IO.File]::WriteAllText((Join-Path $isoFiles '.disk/info'), "Ubuntu $Release LTS `"Fixture`" - Release amd64 ($BuildDate)")
-        [IO.File]::WriteAllText((Join-Path $isoFiles 'boot/grub/grub.cfg'), "menuentry `"$BootTitle`" {`n linux /casper/vmlinuz --- quiet splash`n initrd /casper/initrd`n}`n")
-        # A small archive exercises the real Windows reader; VBox itself is fake.
-        & (Join-Path ([Environment]::GetFolderPath('System')) 'tar.exe') -cf $iso -C $isoFiles .disk/info boot/grub/grub.cfg
-        if ($LASTEXITCODE) { throw 'Media fixture archive failed' }
-    }
-    New-MediaFixture
-    $s = Get-VMSettings $testRoot @{ VBoxPath = $fake; IsoPath = $iso }
+    $s = Get-VMSettings $testRoot @{ VBoxPath = $fake }
     $s.StateRoot = Join-Path $testRoot 'private'
-    Assert ($s.MemoryMB -eq 8192 -and $s.GuestUser -eq 'dev') 'Defaults differ'
+    Assert ($s.GuestUser -eq 'dev' -and $s.GuestRoot -eq '~/src/desky') 'Defaults differ'
     $config = Join-Path $testRoot 'local.json'
-    '{"VmName":"custom","CPUs":2}' | Set-Content $config
-    $override = Get-VMSettings $testRoot @{ Config=$config; CPUs=6 }
-    Assert ($override.VmName -eq 'custom' -and $override.CPUs -eq 6) 'Precedence failure'
+    '{"VmName":"Ubuntu Desktop 雪","GuestRoot":"~/projects/desky"}' | Set-Content $config
+    $override = Get-VMSettings $testRoot @{ Config=$config; GuestRoot='/srv/desky' }
+    Assert ($override.VmName -eq 'Ubuntu Desktop 雪' -and $override.GuestRoot -eq '/srv/desky') 'Precedence failure'
     '{"Password":"should not be accepted"}' | Set-Content $config
     Must-Fail { Get-VMSettings $testRoot @{Config=$config} } 'Unknown configuration'
+    foreach ($setting in 'IsoPath', 'BaseFolder', 'MemoryMB', 'CPUs', 'DiskGB') {
+        @{ $setting = 'old-setting' } | ConvertTo-Json | Set-Content $config
+        Must-Fail { Get-VMSettings $testRoot @{Config=$config} } 'obsolete creation setting'
+    }
     Must-Fail { Get-VMSettings $testRoot @{GuestRoot='/tmp/../root'} } 'GuestRoot'
-    Invoke-VMAction 'status' $s '' '' | Out-Null
-    Assert (-not (Test-Path $s.StateRoot)) 'Status wrote state'
+    Must-Fail { Get-VMSettings $testRoot @{GuestUser='root'} } 'normal Linux account'
+    $absent = Invoke-VMAction 'status' $s '' '' | ConvertFrom-Json
+    Assert ($absent.State -eq 'absent') 'Missing VM status differs'
+    Assert (-not (Test-Path $s.StateRoot)) 'Status wrote private state'
+    foreach ($action in 'start', 'provision', 'collect') {
+        Must-Fail { Invoke-VMAction $action $s '' '' } 'already-installed Ubuntu VM'
+    }
+    Assert (-not (Test-Path $s.StateRoot)) 'Missing VM prompted for credentials or wrote state'
+    # Removed actions must fail at the public entry point before calling VBox.
+    $before = (Get-Content (Join-Path $testRoot 'calls.jsonl')).Count
+    $entryResult = & $module {
+        param($helper, $executable)
+        Invoke-VMProcess 'pwsh' @('-NoProfile', '-File', $helper, 'create', '-VBoxPath', $executable) -AllowFailure
+    } (Join-Path $toolDir 'manage.ps1') $fake
+    Assert ($entryResult.Code -ne 0) 'Removed create action was accepted'
+    Assert ((Get-Content (Join-Path $testRoot 'calls.jsonl')).Count -eq $before) 'Removed action contacted VBox'
+    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ValidateSet|validation|does not belong'
     & pwsh -NoProfile -File (Join-Path $toolDir 'manage.ps1') status -VBoxPath $fake -VmName 'missing-fixture' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Public helper entry point failed' }
-    # Supply a synthetic test password without prompting or touching user credentials.
+
+    # Supply an existing VM; the fake executable has no creation operations.
+    $id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    $statePath = Join-Path $testRoot 'vm.json'
+    $vm = @{ UUID=$id; name='Ubuntu Desktop 雪'; VMState='poweroff'; firmware='efi'; memory='8192'; 'SATA-0-0'='existing.vdi'; 'SATA-1-0'='existing.iso' }
+    $vm | ConvertTo-Json | Set-Content $statePath
+    $s.VmName = $vm.name
+    $existing = Invoke-VMAction 'status' $s '' '' | ConvertFrom-Json
+    Assert ($existing.State -eq 'poweroff') 'Existing VM lookup failed'
+    $byId = $s.Clone()
+    $byId.VmName = $id
+    Assert ((Invoke-VMAction 'status' $byId '' '' | ConvertFrom-Json).State -eq 'poweroff') 'UUID lookup failed'
+    Must-Fail { Invoke-VMAction 'provision' $s '' '' } 'Start the VM'
+    Assert (-not (Test-Path $s.StateRoot)) 'Powered-off VM prompted for credentials'
+    Invoke-VMAction 'start' $s '' '' | Out-Null
+    Invoke-VMAction 'start' $byId '' '' | Out-Null
+    $calls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | ForEach-Object { ,@($_ | ConvertFrom-Json) })
+    Assert (@($calls | Where-Object { $_[0] -eq 'startvm' }).Count -eq 1) 'Repeated start was not harmless'
+    $running = Get-Content $statePath -Raw | ConvertFrom-Json -AsHashtable
+    foreach ($key in 'firmware', 'memory', 'SATA-0-0', 'SATA-1-0') { Assert ($running[$key] -eq $vm[$key]) 'Existing VM settings changed' }
+
+    # Retired installer artifacts must neither gate reuse nor be modified/deleted.
+    [IO.Directory]::CreateDirectory($s.StateRoot) | Out-Null
+    $legacy = Join-Path $s.StateRoot "$id.json"
+    [IO.File]::WriteAllText($legacy, 'obsolete incomplete record, deliberately not valid JSON')
+    $legacyDir = Join-Path $s.StateRoot 'old-installation'
+    [IO.Directory]::CreateDirectory($legacyDir) | Out-Null
+    $legacyFile = Join-Path $legacyDir 'answer-file.fixture'
+    [IO.File]::WriteAllText($legacyFile, 'synthetic private fixture')
+    $legacyHash = (Get-FileHash $legacy).Hash
+    $artifactHash = (Get-FileHash $legacyFile).Hash
+    Invoke-VMAction 'status' $s '' '' | Out-Null
+    # Exercise the real password-file lifetime using a synthetic masked response.
+    # Stub only source/report delivery; their integrity tests remain separate.
     & $module {
-        function script:Use-GuestPassword($Settings, [scriptblock]$Body) {
-            $file = Join-Path $Settings.StateRoot 'test-password'
-            [IO.File]::WriteAllText($file, 'test-only-value')
-            try { & $Body $file } finally { Remove-Item -LiteralPath $file }
+        function script:Read-Host {
+            param([string]$Prompt, [switch]$AsSecureString)
+            ConvertTo-SecureString 'test-only-value' -AsPlainText -Force
+        }
+        function script:Send-VMSource($Settings, $UUID, $PasswordFile, $GuestRoot) {
+            if (-not (Test-Path -LiteralPath $PasswordFile)) { throw 'Password file missing during operation' }
+            if (Test-Path (Join-Path $Settings.Repo 'transfer-failure')) { throw 'Synthetic transfer failure' }
+            @{ UUID=$UUID; Root=$GuestRoot } | ConvertTo-Json -Compress | Add-Content (Join-Path $Settings.Repo 'deliveries.jsonl')
+        }
+        function script:Receive-VMReport($Settings, $UUID, $PasswordFile, $GuestRoot, $Revision, $RunId) {
+            if (-not (Test-Path -LiteralPath $PasswordFile)) { throw 'Password file missing during collection' }
+            @{ UUID=$UUID; Root=$GuestRoot; Revision=$Revision; RunId=$RunId } | ConvertTo-Json -Compress | Add-Content (Join-Path $Settings.Repo 'collections.jsonl')
         }
     }
-    # A failed detector may still print plausible metadata. Never accept it or
-    # expose its raw diagnostics, and keep unsupported/missing metadata actionable.
-    $detectionFixture = Join-Path $testRoot 'detect-result.json'
-    $supported = "OSTypeId=`"Ubuntu25_64`"`nOSVersion=`"26.04.1 LTS Ubuntu`"`nIsInstallSupported=`"on`""
-    $unsupported = "OSTypeId=`"Ubuntu25_64`"`nOSVersion=`"25.10 Ubuntu`"`nIsInstallSupported=`"on`""
-    $partial = "VBoxManage.exe: error: Code E_NOTIMPL (0x80004001) (extended info not available)`r`nVBoxManage.exe: error: Context: `"DetectIsoOS()`" at line 2235 of file VBoxManageMisc.cpp`r`n"
-    foreach ($case in @(
-        @{ Code=1; Out=$unsupported; Err='Code E_NOTIMPL: fixture-private-detail'; Pattern='ISO detection failed.*E_NOTIMPL.*Detected Ubuntu 25\.10.*requires.*26\.04' },
-        @{ Code=1; Out=$supported; Err='fixture-private-detail'; Pattern='ISO detection failed.*Detected Ubuntu 26\.04\.1' },
-        @{ Code=1; Out=$supported; Err=($partial + 'Failed to open ISO: fixture-private-detail'); Pattern='ISO detection failed' },
-        @{ Code=1; Out=$supported.Replace('"on"', '"off"'); Err=$partial; Pattern='requires.*26\.04' },
-        @{ Code=1; Out=$supported.Replace('Ubuntu25_64', 'Ubuntu26_arm64'); Err=$partial; Pattern='requires.*26\.04' },
-        @{ Code=1; Out=''; Err=$partial; Pattern='requires.*26\.04' },
-        @{ Code=2; Out=$supported; Err=$partial; Pattern='ISO detection failed' },
-        @{ Code=1; Out=''; Err='fixture-private-detail'; Pattern='ISO detection failed.*requires.*26\.04' },
-        @{ Code=0; Out=$unsupported; Err=''; Pattern='Detected Ubuntu 25\.10.*requires.*26\.04' },
-        @{ Code=0; Out=''; Err=''; Pattern='requires.*26\.04' }
-    )) {
-        $case | ConvertTo-Json | Set-Content -LiteralPath $detectionFixture
-        $failure = $null
-        try { Invoke-VMAction 'create' $s '' '' | Out-Null } catch { $failure = $_.Exception.Message }
-        Assert ($failure -and $failure -match $case.Pattern) 'ISO rejection did not explain the detection failure or supported release'
-        Assert (-not $failure.Contains('fixture-private-detail')) 'Raw detection diagnostics were exposed'
-        Assert (-not (Test-Path -LiteralPath $s.StateRoot)) 'Rejected ISO wrote installation state'
-        $detectionCalls = Get-Content (Join-Path $testRoot 'calls.jsonl') -Raw
-        Assert ($detectionCalls -notmatch 'createvm|createmedium|modifyvm|storageattach|"install"') 'Rejected ISO mutated a VM'
+    Invoke-VMAction 'provision' $s '' '' | Out-Null
+    Invoke-VMAction 'provision' $s '' '' | Out-Null
+    $deliveries = @(Get-Content (Join-Path $testRoot 'deliveries.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+    Assert ($deliveries.Count -eq 2 -and $deliveries[0].Root -eq '/home/dev/src/desky' -and $deliveries[0].UUID -eq $id) 'Existing VM provisioning failed'
+    Invoke-VMAction 'collect' $s ('a' * 40) ('b' * 32) | Out-Null
+    $collection = Get-Content (Join-Path $testRoot 'collections.jsonl') | ConvertFrom-Json
+    Assert ($collection.Revision -eq ('a' * 40) -and $collection.RunId -eq ('b' * 32)) 'Selected report identity changed'
+    foreach ($failure in 'guestcontrol', 'guest-additions', 'live-session') {
+        Set-Content (Join-Path $testRoot 'fail') $failure
+        Must-Fail { Invoke-VMAction 'provision' $s '' '' } 'Guest not ready or authentication failed'
+        Remove-Item -LiteralPath (Join-Path $testRoot 'fail')
     }
-    Remove-Item -LiteralPath $detectionFixture
-    # The known partial result still requires independent matching desktop media.
-    New-MediaFixture '24.04.5.1'
-    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ISO contents do not confirm'
-    New-MediaFixture '26.04.1' 'Try or Install Ubuntu Server'
-    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ISO contents do not confirm'
-    [IO.File]::WriteAllText($iso, 'not an archive')
-    Must-Fail { Invoke-VMAction 'create' $s '' '' } 'ISO contents do not confirm'
-    Assert (-not (Test-Path -LiteralPath $s.StateRoot)) 'Uncorroborated ISO wrote installation state'
-    # Keep the previous LTS path working, including four-component point releases.
-    New-MediaFixture '24.04.5.1'
-    @{ Code=0; Out=$supported.Replace('26.04.1', '24.04.5.1'); Err='' } | ConvertTo-Json | Set-Content $detectionFixture
-    $priorMedia = & $module { param($settings) Get-InstallationMedia $settings } $s
-    Assert ($priorMedia.Release -eq '24.04.5.1' -and $priorMedia.Detection -eq 'complete') 'Prior LTS media was rejected'
-    New-MediaFixture '24.04.1' 'Try or Install Ubuntu' '20240827.1'
-    @{ Code=0; Out=$supported.Replace('26.04.1', '24.04.1'); Err='' } | ConvertTo-Json | Set-Content $detectionFixture
-    $respunMedia = & $module { param($settings) Get-InstallationMedia $settings } $s
-    Assert ($respunMedia.Release -eq '24.04.1') 'A valid ISO build-date respin suffix was rejected'
-    New-MediaFixture
-    @{ Code=0; Out=$supported; Err='' } | ConvertTo-Json | Set-Content $detectionFixture
-    $completeMedia = & $module { param($settings) Get-InstallationMedia $settings } $s
-    Assert ($completeMedia.Release -eq '26.04.1' -and $completeMedia.Detection -eq 'complete') 'Complete detection was rejected'
-    Remove-Item -LiteralPath $detectionFixture
-    Invoke-VMAction 'create' $s '' '' | Out-Null
-    $records = @(Get-ChildItem $s.StateRoot -Filter '*.json')
-    Assert ($records.Count -eq 1) 'Ownership record missing'
-    $record = Get-Content $records[0].FullName -Raw | ConvertFrom-Json -AsHashtable
-    Assert ($record.Stage -eq 'installing') 'Installation intent missing'
-    Assert ($record.Release -eq '26.04.1' -and $record.Detection -eq 'known-linux-partial') 'Validated media identity was not recorded'
-    Invoke-VMAction 'create' $s '' '' | Out-Null
-    Invoke-VMAction 'start' $s '' '' | Out-Null
-    $calls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | ForEach-Object { ,($_ | ConvertFrom-Json) })
-    Assert (@($calls | Where-Object { $_[0] -eq 'unattended' -and $_[1] -eq 'install' }).Count -eq 1) 'Repeated OS installation'
+    Set-Content (Join-Path $testRoot 'guest-home') 'relative-home'
+    Must-Fail { Invoke-VMAction 'provision' $s '' '' } 'Guest not ready'
+    Remove-Item -LiteralPath (Join-Path $testRoot 'guest-home')
+    Assert ((Get-Content (Join-Path $testRoot 'deliveries.jsonl')).Count -eq 2) 'Failed readiness transferred source'
+    Set-Content (Join-Path $testRoot 'transfer-failure') 'fixture'
+    Must-Fail { Invoke-VMAction 'provision' $s '' '' } 'Synthetic transfer failure'
+    Remove-Item -LiteralPath (Join-Path $testRoot 'transfer-failure')
+    Assert (@(Get-ChildItem $s.StateRoot -Directory).Count -eq 1) 'Temporary credential directories survived'
+    Assert ((Get-FileHash $legacy).Hash -eq $legacyHash -and (Get-FileHash $legacyFile).Hash -eq $artifactHash) 'Retired installation artifacts changed'
     Assert (-not ((Get-Content (Join-Path $testRoot 'calls.jsonl') -Raw).Contains('test-only-value'))) 'Credential leaked to command arguments'
-    Assert (-not (Test-Path (Join-Path $s.StateRoot 'test-password'))) 'Password file survived'
-    Assert (-not (Test-Path (Join-Path $s.StateRoot "$($record.Attempt)/root-password"))) 'Root password survived'
     $guestResult = & $module {
-        param($settings, $id)
-        Invoke-Guest $settings $id 'fixture-password-file' '/usr/bin/python3' @('-c', 'print("a b")', '雪 & ;')
-    } $s $record.UUID
+        param($settings, $uuid)
+        Invoke-Guest $settings $uuid 'fixture-password-file' '/usr/bin/python3' @('-c', 'print("a b")', '雪 & ;')
+    } $s $id
     $guestArgs = @($guestResult.Out | ConvertFrom-Json)
     Assert ($guestArgs.Count -eq 3 -and $guestArgs[0] -ceq '-c' -and $guestArgs[1] -ceq 'print("a b")' -and $guestArgs[2] -ceq '雪 & ;') 'Guest argument boundaries changed'
-    # Unmanaged reuse never modifies hardware or starts an installation.
-    $unmanaged = $s.Clone()
-    $unmanaged.StateRoot = Join-Path $testRoot 'unmanaged'
-    $before = (Get-Content (Join-Path $testRoot 'calls.jsonl')).Count
-    Invoke-VMAction 'create' $unmanaged '' '' | Out-Null
-    $after = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | Select-Object -Skip $before)
-    Assert (-not ($after -match 'modifyvm|unattended|storageattach')) 'Unmanaged VM changed'
-    # A failed tool is a failure, even when it produces plausible output.
     Set-Content (Join-Path $testRoot 'fail') 'showvminfo'
     Must-Fail { Invoke-VMAction 'start' $s '' '' } 'failed'
     Remove-Item -LiteralPath (Join-Path $testRoot 'fail')
-    # Resume interrupted configuration, but never repeat an ambiguous installation.
-    $retry = $s.Clone()
-    $retry.VmName = 'retry-vm'
-    Set-Content (Join-Path $testRoot 'fail') 'storagectl'
-    Must-Fail { Invoke-VMAction 'create' $retry '' '' } 'failed'
-    $retryRecord = @(Get-ChildItem $s.StateRoot -Filter '*.json' | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json -AsHashtable } | Where-Object Name -eq 'retry-vm')[0]
-    Assert ($retryRecord.Stage -eq 'configuring') 'Recoverable creation stage was lost'
-    Assert ($retryRecord.ContainsKey('DiskUUID')) 'Disk ownership was not recorded'
-    Set-Content (Join-Path $testRoot 'disk-identity') '11111111-1111-1111-1111-111111111111'
-    Must-Fail { Invoke-VMAction 'create' $retry '' '' } 'disk identity changed'
-    Remove-Item -LiteralPath (Join-Path $testRoot 'disk-identity')
-    Set-Content (Join-Path $testRoot 'fail') 'unattended install'
-    Must-Fail { Invoke-VMAction 'create' $retry '' '' } 'failed'
-    $retryRecord = Get-Content (Join-Path $s.StateRoot "$($retryRecord.UUID).json") -Raw | ConvertFrom-Json -AsHashtable
-    Assert ($retryRecord.Stage -eq 'installing') 'Ambiguous install was not retained'
-    Assert (-not (Test-Path (Join-Path $s.StateRoot "$($retryRecord.Attempt)/root-password"))) 'Root credential retained after failure'
-    Remove-Item -LiteralPath (Join-Path $testRoot 'fail')
-    Invoke-VMAction 'create' $retry '' '' | Out-Null
-    $calls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | ForEach-Object { ,($_ | ConvertFrom-Json) })
-    Assert (@($calls | Where-Object { $_[0] -eq 'createvm' -and $_ -contains 'retry-vm' }).Count -eq 1) 'Configuration retry recreated the VM'
-    Assert (@($calls | Where-Object { $_[0] -eq 'unattended' -and $_[1] -eq 'install' -and $_ -contains $retryRecord.UUID }).Count -eq 1) 'Failed installation was repeated'
-    $collision = $s.Clone()
-    $collision.VmName = 'existing-disk'
-    $unownedDir = Join-Path $testRoot 'machines/existing-disk'
-    [IO.Directory]::CreateDirectory($unownedDir) | Out-Null
-    $unownedDisk = Join-Path $unownedDir 'desky-system.vdi'
-    [IO.File]::WriteAllText($unownedDisk, 'unrelated data')
-    Must-Fail { Invoke-VMAction 'create' $collision '' '' } 'machine folder already exists'
-    Assert ([IO.File]::ReadAllText($unownedDisk) -ceq 'unrelated data') 'Unowned disk was modified'
+    $calls = @(Get-Content (Join-Path $testRoot 'calls.jsonl') | ForEach-Object { ,@($_ | ConvertFrom-Json) })
+    Assert (@($calls | Where-Object { $_[0] -notin @('--version', 'list', 'showvminfo', 'startvm', 'guestcontrol') }).Count -eq 0) 'Unexpected VM management command'
     # Export a real temporary Git commit; private, ignored and dirty files must not arrive.
     $repo = Join-Path $testRoot 'repo with spaces'
     [IO.Directory]::CreateDirectory($repo) | Out-Null

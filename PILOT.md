@@ -564,3 +564,36 @@ global Codex configuration needs to be rolled back.
   with a regression using the Ubuntu 24.04.1 label's `20240827.1` build date.
   The host suite and full Windows verification runner pass; the earlier nonfatal
   module metadata-cache permission warning remains unrelated to this change.
+
+### 2026-10-05: use already-installed Ubuntu VMs
+
+- The user reported that the installation remained at "begin loading essential
+  drivers" and selected an existing-VM-only workflow. No cause of the boot stall
+  was established. Automated OS installation is retired, superseding the previous
+  installation plan and media-validation work; the stalled VM is preserved.
+- Removed the create action, ISO/hardware creation settings, installer ownership
+  state handling, vendor finalization/root-account changes and media cleanup.
+  The helper retains status, harmless start, authenticated source provisioning and
+  selected report collection. Ubuntu 26.04 and 24.04 Desktop amd64 remain accepted
+  by guest bootstrap/qualification; detected live-installer boot modes are rejected.
+- Existing VM names can include spaces and Unicode. Old creation settings produce
+  a migration message. Private legacy records and installation files are neither
+  read as prerequisites nor removed, including after a manual OS installation.
+  Documentation explains selecting a target and retaining private installer files.
+- Windows regressions exercise existing targets by name/UUID, missing and stopped
+  targets, repeated start/provision, credential cleanup after authentication or
+  transfer failure, Guest Additions failure, rejected create commands, and
+  preservation of VM settings and old installer artifacts. The fake executable
+  has no VM creation/configuration/installation commands. Linux checks retain
+  exact source integrity and add rejection of live-installer sessions.
+- These checks do not establish real Guest Control transfer, repeated package
+  bootstrap or native desktop observations. Increment 4 remains open.
+- Fresh review found that Ubuntu 26.04.1's normal live boot entry omits an explicit
+  `boot=casper` option. Both host readiness and guest bootstrap now inspect the
+  root filesystem as well, rejecting live/transient roots and missing root-mount
+  evidence. Installed overlay-root systems are explicitly outside this workflow.
+  The repair includes a regression using the actual ISO boot command and an
+  overlay root; focused follow-up review found no remaining defects.
+- The Windows host suite, twelve Linux guest tests, shell syntax check and full
+  native verification runner pass. Only read-only status was exercised against
+  real VirtualBox; no VM settings, disks, media or old installer files were changed.

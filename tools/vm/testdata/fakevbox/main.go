@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -19,17 +20,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// Password file names are permitted; password contents are never read or logged.
+	// Only argument paths are logged; password files are never read.
 	_ = json.NewEncoder(log).Encode(args)
 	_ = log.Close()
 	if len(args) == 0 {
 		os.Exit(2)
 	}
-	if fail, _ := os.ReadFile(filepath.Join(root, "fail")); len(fail) != 0 {
-		match := strings.TrimSpace(string(fail))
-		if match == args[0] || len(args) > 1 && match == strings.Join(args[:2], " ") {
-			os.Exit(42)
-		}
+	fail, _ := os.ReadFile(filepath.Join(root, "fail"))
+	failure := strings.TrimSpace(string(fail))
+	if failure == args[0] {
+		os.Exit(42)
 	}
 	state := map[string]string{}
 	data, _ := os.ReadFile(filepath.Join(root, "vm.json"))
@@ -39,9 +39,6 @@ func main() {
 			if arg == name && i+1 < len(args) {
 				return args[i+1]
 			}
-			if strings.HasPrefix(arg, name+"=") {
-				return strings.TrimPrefix(arg, name+"=")
-			}
 		}
 		return ""
 	}
@@ -49,73 +46,56 @@ func main() {
 	case "--version":
 		fmt.Println("7.2.20r175154")
 	case "list":
-		if args[1] == "vms" && state["UUID"] != "" {
-			fmt.Printf("\"%s\" {%s}\n", state["name"], state["UUID"])
+		if len(args) != 2 || args[1] != "vms" {
+			os.Exit(3)
 		}
-		if args[1] == "systemproperties" {
-			fmt.Println("Default machine folder: " + filepath.Join(root, "machines"))
+		if state["UUID"] != "" {
+			fmt.Printf("%s {%s}\n", strconv.Quote(state["name"]), state["UUID"])
 		}
 	case "showvminfo":
 		for key, value := range state {
-			fmt.Printf("%s=\"%s\"\n", key, strings.ReplaceAll(value, "\\", "\\\\"))
+			fmt.Printf("%s=%s\n", key, strconv.Quote(value))
 		}
-	case "createvm":
-		state = map[string]string{"UUID": flag("--uuid"), "name": flag("--name"), "VMState": "poweroff", "CfgFile": filepath.Join(flag("--basefolder"), flag("--name"), "machine.vbox")}
-		_ = os.MkdirAll(filepath.Dir(state["CfgFile"]), 0700)
-	case "createmedium":
-		_ = os.WriteFile(flag("--filename"), []byte("fake disk"), 0600)
-	case "showmediuminfo":
-		if changed, _ := os.ReadFile(filepath.Join(root, "disk-identity")); len(changed) != 0 {
-			fmt.Println("UUID: " + strings.TrimSpace(string(changed)))
-		} else {
-			fmt.Println("UUID: 5c46d971-6548-4d03-9a9b-11ad5d02b12e")
-		}
-	case "storagectl":
-		state["storagecontrollername0"] = "SATA"
-	case "storageattach":
-		state[flag("--storagectl")+"-"+flag("--port")+"-0"] = flag("--medium")
 	case "startvm":
 		state["VMState"] = "running"
+		data, _ = json.Marshal(state)
+		_ = os.WriteFile(filepath.Join(root, "vm.json"), data, 0600)
 	case "guestcontrol":
-		if args[2] != "run" {
+		if len(args) < 3 || args[2] != "run" {
 			os.Exit(3)
 		}
 		for i, arg := range args {
-			if arg == "--" {
-				guestArgs := args[i+1:]
-				if len(guestArgs) > 0 && guestArgs[0] == flag("--exe") {
-					os.Exit(43)
-				}
-				_ = json.NewEncoder(os.Stdout).Encode(guestArgs)
+			if arg != "--" {
+				continue
 			}
-		}
-	case "unattended":
-		if args[1] == "detect" {
-			if data, err := os.ReadFile(filepath.Join(root, "detect-result.json")); err == nil {
-				var result struct {
-					Code int
-					Out  string
-					Err  string
-				}
-				if json.Unmarshal(data, &result) != nil {
-					os.Exit(98)
-				}
-				fmt.Print(result.Out)
-				fmt.Fprint(os.Stderr, result.Err)
-				os.Exit(result.Code)
+			guestArgs := args[i+1:]
+			if len(guestArgs) > 0 && guestArgs[0] == flag("--exe") {
+				os.Exit(43)
 			}
-			fmt.Println("OSTypeId=\"Ubuntu25_64\"\nOSVersion=\"26.04.1 LTS \\\"Resolute Raccoon\\\"\"\nIsInstallSupported=\"on\"")
-			fmt.Fprintln(os.Stderr, "VBoxManage.exe: error: Code E_NOTIMPL (0x80004001) (extended info not available)\nVBoxManage.exe: error: Context: \"DetectIsoOS()\" at line 2235 of file VBoxManageMisc.cpp")
-			os.Exit(1)
-		} else {
-			state["VMState"] = "running"
+			switch flag("--exe") {
+			case "/usr/bin/python3":
+				if len(guestArgs) == 2 && guestArgs[0] == "-c" && strings.Contains(guestArgs[1], "os.path.expanduser") {
+					if failure == "live-session" {
+						os.Exit(45)
+					}
+					if home, err := os.ReadFile(filepath.Join(root, "guest-home")); err == nil {
+						fmt.Print(string(home))
+					} else {
+						fmt.Println("/home/dev")
+					}
+					return
+				}
+			case "/usr/bin/pgrep":
+				if failure == "guest-additions" {
+					os.Exit(44)
+				}
+				fmt.Println("123")
+				return
+			}
+			_ = json.NewEncoder(os.Stdout).Encode(guestArgs)
 		}
-	case "modifyvm":
 	default:
-		os.Exit(3)
-	}
-	if state["UUID"] != "" {
-		data, _ = json.Marshal(state)
-		_ = os.WriteFile(filepath.Join(root, "vm.json"), data, 0600)
+		// No VM creation, installation, media changes, account changes or shutdown.
+		os.Exit(90)
 	}
 }

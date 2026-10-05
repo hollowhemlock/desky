@@ -39,9 +39,10 @@ not native launch behavior. Dependencies
 are pinned in go.mod/go.sum; the first run may need network access to download them.
 
 For repeatable Linux desktop qualification from Windows, see the optional
-[Ubuntu VM workflow](tools/vm/README.md). It supports local VM settings, committed
-source transfer and isolated desktop reports. Its real installation/desktop
-acceptance remains open; automated helper checks are separate from GUI evidence.
+[installed Ubuntu VM workflow](tools/vm/README.md). Select an existing VM and
+account, transfer committed source and record isolated desktop reports. VM creation
+and OS installation are outside this tooling. Real transfer/bootstrap and desktop
+acceptance remain open; automated helper checks are separate from GUI evidence.
 
 Run the resulting executable with `--help` for the implemented command catalog,
 owned by [the CLI](internal/cli/cli.go). For example, run `desk init` in a project
