@@ -690,3 +690,31 @@ global Codex configuration needs to be rolled back.
   Go metadata-cache permission warning remains. Independent review found no
   actionable defects. Real Guest Control completion still requires a local retry;
   no guest credentials were retained or accessed.
+
+### 2026-10-06: replace host provisioning with setup inside a clone
+
+- After another guest-readiness failure, the user explicitly retired the host
+  provisioning approach. Users now create/install their own Ubuntu VM, clone the
+  repository inside it, and run `bash tools/vm/bootstrap.sh` in that checkout.
+- Removed PowerShell VM management, Guest Control authentication and transport,
+  configuration examples, fake VirtualBox tests and their Windows CI step. No
+  existing VM, disk, local cache or private installation artifact was modified.
+  Historical entries above describe the retired workflow, not current support.
+- Setup retains missing-prerequisite installation and the versioned Go toolchain,
+  builds `bin/desk`, and records successful completion in ignored `.cache/vm/`.
+  Source verification now derives exact contents, types and executable modes from
+  the checked-out Git commit; transfer archives, receipts and manifests are gone.
+  Extra ignored or untracked source files remain qualification failures. Optional
+  desktop qualification records separate local reports for manual sharing.
+- Thirteen Linux tests pass using real temporary Git clones. They cover source
+  changes, unexpected ignored files, commit changes, locking, two setup runs,
+  recovery after partial setup or metadata writes, and retaining incomplete
+  qualification results. Package installation and app launches are mocked, so
+  this does not establish actual Ubuntu package/bootstrap or native desktop acceptance.
+- Independent review found interrupted metadata writes could block retries.
+  Failed writes now clean their own temporary files, and narrowly named regular
+  metadata leftovers from hard interruptions do not invalidate source checks or
+  count as completed records. Symlinks and unrelated cache files remain refused.
+- The guest shell syntax check and full Windows native verification pass; the
+  existing nonfatal Go metadata-cache permission warning remains. Increment 4
+  stays open until the outstanding platform observations are recorded.

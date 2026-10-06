@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ubuntu-only VM transport, bootstrap and observed qualification; stdlib only."""
+"""Ubuntu checkout setup and observed desktop qualification; stdlib only."""
 import argparse
 import contextlib
 import datetime
@@ -26,14 +26,17 @@ def sha256(path):
 
 def atomic_json(path, value):
     path = Path(path)
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
-                                     prefix=".writing-", delete=False) as stream:
-        json.dump(value, stream, indent=2, ensure_ascii=False)
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-        temp = stream.name
-    os.replace(temp, path)
+    temp = path.with_name(f".{path.name}.writing-{uuid.uuid4().hex}")
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def unlinked(path):
@@ -48,7 +51,9 @@ def unlinked(path):
 def locked(root):
     import fcntl
     root = unlinked(root)
-    lock = root / ".vm-operation.lock"
+    state = unlinked(root / ".cache/vm")
+    state.mkdir(parents=True, exist_ok=True)
+    lock = state / "operation.lock"
     fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -59,134 +64,95 @@ def locked(root):
         os.close(fd)
 
 
-def read_manifest(path):
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if data.get("schema") != 1 or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", data.get("revision", "")):
-        raise ValueError("Invalid source manifest identity")
-    if not re.fullmatch(r"[0-9a-f]{64}", data.get("archive_sha256", "")):
-        raise ValueError("Invalid archive checksum")
-    seen = set()
-    for item in data["files"]:
-        name = item["path"]
-        path = PurePosixPath(name)
-        if (not name or path.is_absolute() or ".." in path.parts or str(path) != name
-                or "\\" in name or name in seen or path.parts[0] in (".desky-vm", ".cache", "bin")):
-            raise ValueError("Unsafe or duplicate manifest path")
-        if item["type"] not in ("file", "symlink") or not isinstance(item["executable"], bool):
-            raise ValueError("Unsupported manifest entry")
-        if not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]):
-            raise ValueError("Invalid file checksum")
-        seen.add(name)
-    return data
+def git_snapshot(root):
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.DEVNULL)
+
+    if Path(os.fsdecode(git("rev-parse", "--show-toplevel")).rstrip("\n")) != root:
+        raise ValueError("Run from the root of a cloned Desky repository")
+    revision = git("rev-parse", "--verify", "HEAD").decode().strip()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", revision):
+        raise ValueError("Cannot identify the checked-out commit")
+    files = []
+    for entry in git("ls-tree", "-rz", "--full-tree", revision).split(b"\0"):
+        if not entry:
+            continue
+        metadata, name = entry.split(b"\t", 1)
+        mode, kind, oid = metadata.decode().split()
+        name = os.fsdecode(name)
+        if kind != "blob" or mode not in ("100644", "100755", "120000"):
+            raise ValueError("Submodules and unsupported Git entries cannot be qualified")
+        if PurePosixPath(name).parts[0] in (".cache", "bin"):
+            raise ValueError("Workflow output directories must not be committed")
+        files.append({"path": name, "type": "symlink" if mode == "120000" else "file",
+                      "executable": mode == "100755", "oid": oid})
+    return {"revision": revision, "files": files}
 
 
 def generated_file(name):
-    if name in (".desky-vm/manifest.json", ".desky-vm/bootstrap.json", "bin/desk"):
+    if name in (".cache/vm/bootstrap.json", ".cache/vm/operation.lock", "bin/desk"):
+        return True
+    # A killed process cannot remove its temporary metadata. These exact names
+    # stay outside source discovery and are never read as completed records.
+    if re.fullmatch(r"\.cache/(?:vm/\.bootstrap\.json|vm-runs/[0-9a-f]{32}/\.report\.json)\.writing-[0-9a-f]{32}", name):
         return True
     # The verification runner and Go package discovery ignore this dot-directory.
     # Only this workflow's run namespace may accumulate application state and logs.
     return bool(re.fullmatch(r"\.cache/vm-runs/[0-9a-f]{32}/(?:report\.json|verification\.log|fixture/.+|xdg/.+)", name))
 
 
-def verify_tree(root, manifest=None, allow_generated=True):
+def verify_tree(root, snapshot=None):
     root = unlinked(root)
-    if manifest is None:
-        unlinked(root / ".desky-vm/manifest.json")
-        manifest = read_manifest(root / ".desky-vm/manifest.json")
-    expected = {item["path"]: item for item in manifest["files"]}
+    current = git_snapshot(root)
+    if snapshot is not None and current != snapshot:
+        raise ValueError("Checked-out revision changed during the workflow")
+    snapshot = current
+    expected = {item["path"]: item for item in snapshot["files"]}
     parents = {str(p) for n in expected for p in PurePosixPath(n).parents if str(p) != "."}
     found = set()
     for base, directories, files in os.walk(root, followlinks=False):
+        if Path(base) == root:
+            # Git metadata is not source; support both clones and linked worktrees.
+            directories[:] = [n for n in directories if n != ".git"]
+            files = [n for n in files if n != ".git"]
         for name in directories + files:
             path = Path(base) / name
             rel = path.relative_to(root).as_posix()
             info = path.lstat()
             if stat.S_ISDIR(info.st_mode):
-                workflow_dir = allow_generated and (
-                    rel in (".desky-vm", "bin", ".cache", ".cache/vm-runs")
+                workflow_dir = (
+                    rel in ("bin", ".cache", ".cache/vm", ".cache/vm-runs")
                     or re.fullmatch(r"\.cache/vm-runs/[0-9a-f]{32}(?:/(?:fixture|xdg)(?:/.*)?)?", rel))
                 if rel not in parents and not workflow_dir:
                     raise ValueError(f"Unexpected source directory: {rel}")
                 continue
             item = expected.get(rel)
             if item is None:
-                if allow_generated and generated_file(rel) and stat.S_ISREG(info.st_mode):
+                if generated_file(rel) and stat.S_ISREG(info.st_mode):
                     continue
                 raise ValueError(f"Unexpected source file: {rel}")
+            digest = hashlib.new("sha1" if len(item["oid"]) == 40 else "sha256")
             if item["type"] == "symlink":
-                if not stat.S_ISLNK(info.st_mode) or os.readlink(path) != item["target"]:
+                if not stat.S_ISLNK(info.st_mode):
                     raise ValueError(f"Changed source symlink: {rel}")
-                digest = hashlib.sha256(os.readlink(path).encode()).hexdigest()
+                data = os.fsencode(os.readlink(path))
+                digest.update(f"blob {len(data)}\0".encode())
+                digest.update(data)
             else:
                 if not stat.S_ISREG(info.st_mode):
                     raise ValueError(f"Changed source type: {rel}")
-                digest = sha256(path)
                 if bool(info.st_mode & 0o111) != item["executable"]:
                     raise ValueError(f"Changed executable mode: {rel}")
-            if digest != item["sha256"]:
+                digest.update(f"blob {info.st_size}\0".encode())
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(65536), b""):
+                        digest.update(chunk)
+            if digest.hexdigest() != item["oid"]:
                 raise ValueError(f"Changed source contents: {rel}")
             found.add(rel)
     if found != set(expected):
-        raise ValueError("Exported source files are missing")
-    return manifest
-
-
-def publish(incoming, parent, expected_hash):
-    incoming, parent = unlinked(incoming), unlinked(parent)
-    if incoming.parent != parent or not incoming.name.startswith(".incoming-"):
-        raise ValueError("Staging directory must be a direct child of the source root")
-    manifest = read_manifest(incoming / "manifest.json")
-    archive = unlinked(incoming / "source.tar")
-    if manifest["archive_sha256"] != expected_hash or sha256(archive) != expected_hash:
-        raise ValueError("Source archive checksum mismatch")
-    with locked(parent):
-        destination = parent / manifest["revision"]
-        if destination.exists() or destination.is_symlink():
-            old = verify_tree(destination)
-            if old != manifest:
-                raise ValueError("Existing source export differs; preserving it")
-            return destination
-        staging = incoming / "tree"
-        staging.mkdir()
-        expected = {item["path"]: item for item in manifest["files"]}
-        # Extract entries ourselves. Never follow a symlink when writing later members.
-        with tarfile.open(archive, "r:") as tar:
-            members = tar.getmembers()
-            seen = set()
-            for member in members:
-                path = PurePosixPath(member.name.rstrip("/"))
-                if path.is_absolute() or ".." in path.parts or "\\" in member.name:
-                    raise ValueError("Unsafe archive path")
-                if member.isdir():
-                    continue
-                if member.name not in expected or member.name in seen:
-                    raise ValueError("Archive does not match source manifest")
-                seen.add(member.name)
-                item = expected[member.name]
-                if not ((member.isfile() and item["type"] == "file") or (member.issym() and item["type"] == "symlink")):
-                    raise ValueError("Archive type does not match manifest")
-                for ancestor in path.parents:
-                    if str(ancestor) in expected:
-                        raise ValueError("Archive attempts to write through a source entry")
-            if seen != set(expected):
-                raise ValueError("Archive is incomplete")
-            for member in members:
-                if member.isdir():
-                    continue
-                target = staging / member.name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                item = expected[member.name]
-                if member.issym():
-                    os.symlink(member.linkname, target)
-                else:
-                    with tar.extractfile(member) as source, open(target, "xb") as dest:
-                        shutil.copyfileobj(source, dest)
-                    target.chmod(0o755 if item["executable"] else 0o644)
-        verify_tree(staging, manifest, allow_generated=False)
-        (staging / ".desky-vm").mkdir()
-        atomic_json(staging / ".desky-vm/manifest.json", manifest)
-        os.rename(staging, destination)
-        return destination
+        raise ValueError("Committed source files are missing")
+    return snapshot
 
 
 def run(args, **kwargs):
@@ -258,9 +224,9 @@ def configure_go(root):
 
 def bootstrap(root):
     root = unlinked(root)
-    manifest = verify_tree(root)
+    snapshot = verify_tree(root)
     ubuntu_desktop()
-    with locked(root.parent):
+    with locked(root):
         run(["sudo", "-v"])
         packages = ["git", "build-essential", "ca-certificates", "curl", "gnupg", "xdg-utils",
                     "gnome-terminal", "gnome-text-editor", "python3"]
@@ -298,12 +264,17 @@ def bootstrap(root):
         for executable in ("git", "gcc", "xdg-open", "gnome-terminal", "gnome-text-editor", "firefox", "code"):
             if not shutil.which(executable):
                 raise ValueError("Required executable unavailable: " + executable)
-        verify_tree(root, manifest)
-        atomic_json(root / ".desky-vm/bootstrap.json", {"schema": 1, "go": go,
+        build_env = os.environ.copy()
+        build_env["PATH"] = str(Path(go).parent) + os.pathsep + build_env.get("PATH", "")
+        (root / "bin").mkdir(exist_ok=True)
+        run([go, "build", "-o", "bin/desk", "./cmd/desk"], cwd=root, env=build_env)
+        verify_tree(root, snapshot)
+        atomic_json(root / ".cache/vm/bootstrap.json", {"schema": 1, "go": go,
                     "go_version": output([go, "version"]), "packages": output(["dpkg-query", "-W", *packages]),
                     "code_version": output(["code", "--version"]),
-                    "revision": manifest["revision"]})
-    print("Bootstrap complete. Run: python3 tools/vm/guest.py qualify .")
+                    "revision": snapshot["revision"]})
+    print("Setup complete. Built:", root / "bin/desk")
+    print("Optional desktop qualification: python3 tools/vm/guest.py qualify .")
 
 
 OBSERVATIONS = {
@@ -328,20 +299,20 @@ def observe(prompt):
 
 def qualify(root):
     root = unlinked(root)
-    manifest = verify_tree(root)
+    snapshot = verify_tree(root)
     ubuntu_desktop()
     if (not sys.stdin.isatty() or not (os.getenv("DISPLAY") or os.getenv("WAYLAND_DISPLAY"))
             or any(os.getenv(k) for k in ("SSH_CONNECTION", "SSH_TTY", "WSL_DISTRO_NAME", "WSL_INTEROP"))):
         raise ValueError("Run qualification from the logged-in Ubuntu desktop terminal")
-    setup = json.loads((root / ".desky-vm/bootstrap.json").read_text())
+    setup = json.loads((root / ".cache/vm/bootstrap.json").read_text())
     go = setup["go"]
-    if setup["revision"] != manifest["revision"] or not Path(go).is_absolute():
-        raise ValueError("Bootstrap identity does not match this source export")
-    with locked(root.parent):
+    if setup["revision"] != snapshot["revision"] or not Path(go).is_absolute():
+        raise ValueError("Run bootstrap again for this checked-out revision")
+    with locked(root):
         run_id = uuid.uuid4().hex
         run_dir = root / ".cache/vm-runs" / run_id
         run_dir.mkdir(parents=True)
-        report = {"schema": 1, "revision": manifest["revision"], "archive_sha256": manifest["archive_sha256"],
+        report = {"schema": 1, "revision": snapshot["revision"], "source": "git-checkout",
                   "run_id": run_id, "time_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   "os": Path("/etc/os-release").read_text(), "architecture": output(["uname", "-m"]),
                   "session": {k: os.getenv(k, "") for k in ("XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE")},
@@ -359,7 +330,7 @@ def qualify(root):
                                         stdout=log, stderr=subprocess.STDOUT)
             report["automated"] = "passed" if result.returncode == 0 else "failed"
             report["verification_exit"] = result.returncode
-            verify_tree(root, manifest)
+            verify_tree(root, snapshot)
             if result.returncode:
                 return report
             fixture = run_dir / "fixture" / "-Desky 雪 & spaces; punctuation"
@@ -417,7 +388,7 @@ profile = "note"
             report["dispatch"] = "passed" if first.returncode == second.returncode == 0 else "failed"
         finally:
             try:
-                verify_tree(root, manifest)
+                verify_tree(root, snapshot)
             except Exception:
                 report["source_integrity"] = "failed"
             report["result"] = "passed" if (report["source_integrity"] == report["automated"] == report.get("dispatch") == "passed"
@@ -431,27 +402,10 @@ profile = "note"
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    transfer = commands.add_parser("publish")
-    for name in ("incoming", "parent", "sha256"):
-        transfer.add_argument(name)
-    transfer.add_argument("--receipt", action="store_true",
-                          help="write publication.json in this unique staging directory")
     for name in ("verify", "bootstrap", "qualify"):
         commands.add_parser(name).add_argument("root", type=Path)
     args = parser.parse_args()
-    if args.command == "publish":
-        destination = publish(args.incoming, args.parent, args.sha256)
-        if args.receipt:
-            # The host retrieves this file after a successful exit. Guest Control
-            # can lose final stdout; neither empty output nor exit zero is proof.
-            receipt = {"schema": 1, "revision": destination.name, "directory": str(destination),
-                       "archive_sha256": args.sha256, "incoming": str(unlinked(args.incoming))}
-            with unlinked(Path(args.incoming) / "publication.json").open("x", encoding="utf-8") as stream:
-                json.dump(receipt, stream, ensure_ascii=False)
-                stream.flush()
-                os.fsync(stream.fileno())
-        print(destination)
-    elif args.command == "verify":
+    if args.command == "verify":
         print(verify_tree(args.root)["revision"])
     elif args.command == "bootstrap":
         bootstrap(args.root)

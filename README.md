@@ -190,10 +190,11 @@ and Linux on amd64/arm64; compilation does not verify desktop launching. Native
 CI exercises persistence, concurrency, recovery, privacy and process boundaries
 on all three OSes. See [PILOT.md](PILOT.md) for actual results and remaining gates.
 
-For Linux desktop qualification from Windows, the optional
-[installed Ubuntu VM workflow](tools/vm/README.md) transfers committed source to
-an existing VM and records isolated reports. VM creation and OS installation are
-outside that tooling. Real transfer/bootstrap and desktop acceptance remain open.
+For Ubuntu development, create your own VM and clone this repository inside it,
+then run `bash tools/vm/bootstrap.sh` to install prerequisites and build Desky.
+The [Ubuntu setup workflow](tools/vm/README.md) also provides optional desktop
+qualification with isolated reports. Actual package setup and desktop acceptance
+remain open.
 
 | Document | Purpose |
 |---|---|

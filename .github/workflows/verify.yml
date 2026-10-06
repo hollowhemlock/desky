@@ -23,9 +23,6 @@ jobs:
         run: go run ./tools/verify
       - if: runner.os == 'Linux'
         run: go run ./tools/verify -race -cross
-      - if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./tools/vm/tests/host.tests.ps1
       - if: runner.os == 'Linux'
         run: |
           bash -n tools/vm/bootstrap.sh

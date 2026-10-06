@@ -164,11 +164,12 @@ not a desktop support claim. See PILOT.md for actual check results and the exact
 desktop matrix. Complete the remaining native desktop smoke checks before marking
 this increment fully qualified; no installer or release publication is included.
 
-Optional [VM development tooling](tools/vm/README.md) uses an already-installed
-Ubuntu 26.04 or 24.04 LTS Desktop guest from Windows, transfers committed source
-and records isolated qualification runs. VM creation and OS installation are
-outside this tooling. Deterministic helper checks do not complete native desktop
-acceptance; real provisioning/bootstrap and observed qualification remain gates.
+Optional [Ubuntu development tooling](tools/vm/README.md) runs from a repository
+the user clones inside their own Ubuntu 26.04 or 24.04 LTS Desktop VM. One setup
+script installs prerequisites and builds Desky; optional qualification checks the
+checkout directly against Git and records isolated runs. VM management and source
+transfer are outside this tooling. Deterministic checks do not complete native
+desktop acceptance; real package bootstrap and observed qualification remain gates.
 
 ## Verification and completion discipline
 

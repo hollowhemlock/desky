@@ -1,5 +1,0 @@
-{
-  "VmName": "desky-dev",
-  "GuestUser": "dev",
-  "GuestRoot": "~/src/desky"
-}
