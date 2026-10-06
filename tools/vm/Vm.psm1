@@ -135,11 +135,45 @@ function Invoke-Guest {
 
 function Copy-ToGuest {
     param($Settings, [string]$UUID, [string]$PasswordFile, [string]$Source, [string]$Destination)
-    # VBox's GuestPath::BuildDestinationPath appends the source basename only
-    # for a trailing separator, even when --target-directory is specified.
-    $directory = $Destination.TrimEnd('/') + '/'
+    # VBox copyto --no-replace can create an empty file and then skip its data.
+    # Copy into a newly created private directory without that flag. Only link a
+    # verified file into staging; link fails atomically if its name already exists.
+    $upload = $Destination.TrimEnd('/') + '/.copy-' + [guid]::NewGuid().ToString('N')
+    $name = [IO.Path]::GetFileName($Source)
+    $hash = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash.ToLowerInvariant()
+    $size = [string](Get-Item -LiteralPath $Source).Length
+    $copyCode = @'
+import hashlib,os,stat,sys
+from pathlib import Path
+operation,upload,name = sys.argv[1:4]
+p = Path(upload)
+if not p.is_absolute() or not p.name.startswith('.copy-') or Path(name).name != name or name in ('', '.', '..'):
+ raise ValueError('Invalid copy path')
+for part in [p]+list(p.parents):
+ if part.is_symlink(): raise ValueError('Linked copy path refused')
+if operation == 'prepare':
+ p.mkdir(mode=0o700)
+elif operation == 'verify':
+ source = p/name
+ with os.fdopen(os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+  info = os.fstat(stream.fileno())
+  if not stat.S_ISREG(info.st_mode) or info.st_size != int(sys.argv[4]):
+   raise ValueError('Transferred file size or type mismatch')
+  if hashlib.file_digest(stream, 'sha256').hexdigest() != sys.argv[5]:
+   raise ValueError('Transferred file checksum mismatch')
+ os.link(source, p.parent/name, follow_symlinks=False)
+ source.unlink()
+ p.rmdir()
+else:
+ raise ValueError('Invalid copy operation')
+'@
+    try { Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @('-c', $copyCode, 'prepare', $upload, $name) 30 | Out-Null }
+    catch { throw "Preparing private guest copy directory failed. $($_.Exception.Message)" }
+    # VBox appends the source basename only for a trailing separator.
     Invoke-VBox $Settings @('guestcontrol', $UUID, 'copyto', '--username', $Settings.GuestUser, '--passwordfile', $PasswordFile,
-        '--no-replace', '--target-directory', $directory, $Source) 300 | Out-Null
+        '--target-directory', "$upload/", $Source) 300 | Out-Null
+    try { Invoke-Guest $Settings $UUID $PasswordFile '/usr/bin/python3' @('-c', $copyCode, 'verify', $upload, $name, $size, $hash) 60 | Out-Null }
+    catch { throw "Guest copy integrity verification or exclusive staging failed; publication was not attempted. $($_.Exception.Message)" }
 }
 
 function Assert-GuestReady {

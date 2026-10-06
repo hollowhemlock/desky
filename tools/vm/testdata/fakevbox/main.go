@@ -104,20 +104,21 @@ func main() {
 				fmt.Fprintln(os.Stderr, "fixture-private-detail")
 				os.Exit(42)
 			}
-			if !slices.Contains(args, "--no-replace") {
-				os.Exit(46)
-			}
 			data, err := os.ReadFile(source)
 			if err != nil {
 				os.Exit(47)
 			}
-			staging := filepath.Base(strings.TrimSuffix(flag("--target-directory"), "/"))
-			if !strings.HasPrefix(staging, ".incoming-") {
-				os.Exit(49)
-			}
-			target, err := os.OpenFile(filepath.Join(root, staging, filepath.Base(source)), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+			staging := guestPath(root, flag("--target-directory"))
+			target, err := os.OpenFile(filepath.Join(staging, filepath.Base(source)), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 			if err != nil {
 				os.Exit(48)
+			}
+			// Model the vendor bug: CreateNew succeeds, then NoReplace sees
+			// that new file and skips the write while returning success.
+			if slices.Contains(args, "--no-replace") || failure == "empty-copy-"+filepath.Base(source) {
+				data = nil
+			} else if failure == "corrupt-copy-"+filepath.Base(source) {
+				data[0] ^= 0xff
 			}
 			if _, err := target.Write(data); err != nil {
 				panic(err)
@@ -140,6 +141,34 @@ func main() {
 			}
 			switch flag("--exe") {
 			case "/usr/bin/python3":
+				if len(guestArgs) >= 5 && guestArgs[0] == "-c" && strings.Contains(guestArgs[1], "operation,upload,name") {
+					upload := guestPath(root, guestArgs[3])
+					if guestArgs[2] == "prepare" {
+						if err := os.Mkdir(upload, 0700); err != nil {
+							os.Exit(56)
+						}
+						return
+					}
+					if guestArgs[2] != "verify" || len(guestArgs) != 7 {
+						os.Exit(57)
+					}
+					candidate := filepath.Join(upload, guestArgs[4])
+					data, err := os.ReadFile(candidate)
+					if err != nil || strconv.Itoa(len(data)) != guestArgs[5] || fmt.Sprintf("%x", sha256.Sum256(data)) != guestArgs[6] {
+						fmt.Fprintln(os.Stderr, "fixture-private-detail")
+						os.Exit(58)
+					}
+					if err := os.Link(candidate, filepath.Join(filepath.Dir(upload), guestArgs[4])); err != nil {
+						os.Exit(59)
+					}
+					if err := os.Remove(candidate); err != nil {
+						panic(err)
+					}
+					if err := os.Remove(upload); err != nil {
+						panic(err)
+					}
+					return
+				}
 				if len(guestArgs) == 3 && guestArgs[0] == "-c" && strings.Contains(guestArgs[1], "tempfile.mkdtemp") {
 					if failure == "stage" {
 						fmt.Fprintln(os.Stderr, "fixture-private-detail")
@@ -228,4 +257,16 @@ func main() {
 		// No VM creation, installation, media changes, account changes or shutdown.
 		os.Exit(90)
 	}
+}
+
+// Map only this workflow's staging namespace into the disposable fixture root.
+func guestPath(root, path string) string {
+	parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
+	for i, part := range parts {
+		if strings.HasPrefix(part, ".incoming-") {
+			return filepath.Join(append([]string{root}, parts[i:]...)...)
+		}
+	}
+	os.Exit(49)
+	return ""
 }

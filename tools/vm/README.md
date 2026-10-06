@@ -53,6 +53,12 @@ It reports staging, each file copy and source publication separately. If a
 transfer fails, its error identifies the stage while keeping raw guest diagnostics
 private. Retry `provision` after addressing the failure; each attempt uses a new
 staging directory, and an incomplete transfer is never published.
+Each file first lands in a new private subdirectory, then its size and SHA-256 are
+checked through authenticated guest execution before an exclusive hard link places
+it in staging. Existing files are preserved. This avoids the empty-file behavior
+of VirtualBox's `copyto --no-replace` without allowing replacements. A damaged copy
+stops the transfer before the publisher runs; partial copies remain in their
+attempt directory for inspection.
 After successful verification and publication, the guest writes a small
 `publication.json` confirmation inside that attempt's staging directory. The host
 retrieves only this workflow file and checks its revision, archive checksum,

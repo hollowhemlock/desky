@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tarfile
@@ -16,6 +17,73 @@ sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location("guest", Path(__file__).parents[1] / "guest.py")
 guest = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guest)
+
+
+@unittest.skipUnless(sys.platform == "linux", "Linux guest copy protocol")
+class CopyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Execute the actual inline program sent by the host, not a test copy of
+        # its logic. Keep this small transfer primitive independent of copied code.
+        host = (Path(__file__).parents[1] / "Vm.psm1").read_text()
+        cls.code = re.search(r"\$copyCode = @'\n(.*?)\n'@", host, re.DOTALL).group(1)
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.parent = Path(self.temp.name) / ".incoming-雪 & spaces; 'quote'"
+        self.parent.mkdir()
+        self.upload = self.parent / ".copy-test"
+        self.name = "transport.py"
+        self.contents = b"print('verified')\n"
+        self.digest = hashlib.sha256(self.contents).hexdigest()
+
+    def invoke(self, operation):
+        return subprocess.run([sys.executable, "-c", self.code, operation, str(self.upload), self.name,
+                               str(len(self.contents)), self.digest], capture_output=True, text=True)
+
+    def prepare(self):
+        result = self.invoke("prepare")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.upload.stat().st_mode & 0o777, 0o700)
+
+    def test_verified_copy_and_existing_destination(self):
+        self.prepare()
+        (self.upload / self.name).write_bytes(self.contents)
+        result = self.invoke("verify")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.parent / self.name).read_bytes(), self.contents)
+        self.assertFalse(self.upload.exists())
+        self.prepare()
+        (self.upload / self.name).write_bytes(self.contents)
+        (self.parent / self.name).write_text("preserve")
+        self.assertNotEqual(self.invoke("verify").returncode, 0)
+        self.assertEqual((self.parent / self.name).read_text(), "preserve")
+        self.assertEqual((self.upload / self.name).read_bytes(), self.contents)
+
+    def test_empty_truncated_and_corrupted_files_are_not_staged(self):
+        self.prepare()
+        for contents in (b"", self.contents[:-1], b"X" * len(self.contents)):
+            with self.subTest(contents=contents):
+                (self.upload / self.name).write_bytes(contents)
+                self.assertNotEqual(self.invoke("verify").returncode, 0)
+                self.assertFalse((self.parent / self.name).exists())
+                self.assertEqual((self.upload / self.name).read_bytes(), contents)
+
+    def test_links_and_existing_upload_directory_are_preserved(self):
+        self.prepare()
+        self.assertNotEqual(self.invoke("prepare").returncode, 0)
+        target = self.parent / "unrelated"
+        target.write_bytes(self.contents)
+        candidate = self.upload / self.name
+        candidate.symlink_to(target)
+        self.assertNotEqual(self.invoke("verify").returncode, 0)
+        candidate.unlink()
+        candidate.write_bytes(self.contents)
+        (self.parent / self.name).symlink_to(target)
+        self.assertNotEqual(self.invoke("verify").returncode, 0)
+        self.assertEqual(target.read_bytes(), self.contents)
+        self.assertTrue((self.parent / self.name).is_symlink())
 
 
 class ExportTests(unittest.TestCase):

@@ -664,3 +664,29 @@ global Codex configuration needs to be rolled back.
   (the existing nonfatal Go module cache permission warning remains). Independent
   review found no actionable defects. A real Guest Control retry, bootstrap and
   desktop qualification remain open; no VM credentials were retained or accessed.
+
+### 2026-10-06: prevent successful empty copies
+
+- The user's guest-side probe found all three staging files had zero bytes and
+  the empty SHA-256, while their host counterparts were nonempty. The confirmation
+  file was absent. Python's successful execution of an empty transport script
+  explains the missing output and receipt; the earlier lost-output hypothesis
+  was not the cause established by this evidence.
+- Inspection of VirtualBox's [fileCopyToGuest implementation](https://github.com/VirtualBox/virtualbox/blob/main/src/VBox/Main/src-client/GuestSessionImplTasks.cpp)
+  found that `NoReplace` opens a new destination before querying its existence,
+  then skips that newly created file and returns success. The fake now reproduces
+  this behavior instead of assuming that successful copies contain the source.
+- Copies now use a fresh private subdirectory without that flag. An inline guest
+  check verifies regular-file type, size and SHA-256 before exclusively linking
+  into staging. Existing destinations, including symlinks, are never replaced;
+  failed candidates remain available for inspection. The copied publisher cannot
+  run until all three files pass these checks. Copy-back receipts retain their
+  existing no-replace behavior; the vendor defect is in the host-to-guest path.
+- Regression coverage runs the exact inline Python program on Linux, checking
+  empty/truncated/corrupted files, private directories, existing destinations and
+  symlinks. Host regressions inject successful empty copies at all three stages
+  and confirm that publication is never attempted. The Windows host suite,
+  eighteen Linux tests and full native verification pass; the existing nonfatal
+  Go metadata-cache permission warning remains. Independent review found no
+  actionable defects. Real Guest Control completion still requires a local retry;
+  no guest credentials were retained or accessed.

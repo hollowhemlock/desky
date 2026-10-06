@@ -179,7 +179,8 @@ try {
     Assert ($copies.Count -eq 3) 'Transfer did not copy all three workflow files'
     $destination = $copies[0][[array]::IndexOf($copies[0], '--target-directory') + 1]
     Assert ($destination.StartsWith($guestRoot + '/.incoming-') -and $destination.EndsWith('/')) 'Guest directory argument lost its path or trailing slash'
-    $staging = Join-Path $testRoot ($destination.TrimEnd('/').Split('/')[-1])
+    $incoming = $destination.TrimEnd('/').Substring(0, $destination.TrimEnd('/').LastIndexOf('/'))
+    $staging = Join-Path $testRoot ($incoming.Split('/')[-1])
     $originalHash = (Get-FileHash -LiteralPath (Join-Path $staging 'source.tar')).Hash
     # A direct call without the separator must fail just as the real vendor does.
     Must-Fail { & $module {
@@ -189,8 +190,17 @@ try {
     Must-Fail { & $module {
         param($settings, $uuid, $dest, $source)
         Copy-ToGuest $settings $uuid 'fixture-password-file' $source $dest
-    } $exportSettings $id $destination $export.Archive } 'Tool operation.*failed'
+    } $exportSettings $id $incoming $export.Archive } 'exclusive staging failed'
     Assert ((Get-FileHash -LiteralPath (Join-Path $staging 'source.tar')).Hash -eq $originalHash) 'Existing guest copy was replaced'
+    # Reproduce NoReplace's successful empty-file result in the fake, so an
+    # accidental reintroduction of that flag cannot pass the transfer tests.
+    $bugDirectory = Join-Path $staging '.copy-vendor-bug'
+    [IO.Directory]::CreateDirectory($bugDirectory) | Out-Null
+    & $module {
+        param($settings, $uuid, $dest, $source)
+        Invoke-VBox $settings @('guestcontrol', $uuid, 'copyto', '--no-replace', '--target-directory', $dest, $source) | Out-Null
+    } $exportSettings $id ($incoming + '/.copy-vendor-bug/') $export.Archive
+    Assert ((Get-Item -LiteralPath (Join-Path $bugDirectory 'source.tar')).Length -eq 0) 'Fake did not reproduce the vendor empty-copy bug'
     # Lost or noisy process output is harmless only with a matching receipt.
     foreach ($failure in 'publication-empty', 'publication-noisy', 'publication-wrong') {
         Set-Content (Join-Path $testRoot 'fail') $failure
@@ -208,6 +218,10 @@ try {
         @{ Failure='copyto-source.tar'; Message='Copying source.tar to guest staging failed'; Copies=1; Publishes=0 },
         @{ Failure='copyto-manifest.json'; Message='Copying manifest.json to guest staging failed'; Copies=2; Publishes=0 },
         @{ Failure='copyto-transport.py'; Message='Copying transport.py to guest staging failed'; Copies=3; Publishes=0 },
+        @{ Failure='empty-copy-source.tar'; Message='Guest copy integrity verification'; Copies=1; Publishes=0 },
+        @{ Failure='empty-copy-manifest.json'; Message='Guest copy integrity verification'; Copies=2; Publishes=0 },
+        @{ Failure='empty-copy-transport.py'; Message='Guest copy integrity verification'; Copies=3; Publishes=0 },
+        @{ Failure='corrupt-copy-transport.py'; Message='Guest copy integrity verification'; Copies=3; Publishes=0 },
         @{ Failure='publish'; Message='Verifying and publishing committed source failed'; Copies=3; Publishes=1 },
         @{ Failure='receipt-missing'; Message='Retrieving publication confirmation failed'; Copies=3; Publishes=1 },
         @{ Failure='receipt-copy'; Message='Retrieving publication confirmation failed'; Copies=3; Publishes=1 },
