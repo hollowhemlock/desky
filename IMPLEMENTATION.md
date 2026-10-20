@@ -168,8 +168,12 @@ Optional [Ubuntu development tooling](tools/vm/README.md) runs from a repository
 the user clones inside their own Ubuntu 26.04 or 24.04 LTS Desktop VM. One setup
 script installs prerequisites and builds Desky; optional qualification checks the
 checkout directly against Git and records isolated runs. VM management and source
-transfer are outside this tooling. Deterministic checks do not complete native
-desktop acceptance; real package bootstrap and observed qualification remain gates.
+transfer are outside this tooling. On 2026-10-20, Ubuntu 26.04.1/amd64 GNOME
+Wayland passed repeated bootstrap with installed prerequisites and all eight
+desktop observations with configured profiles at `b57f04c`; PILOT.md records the exact
+versions and retained failures. Installing missing packages on a fresh machine,
+the Linux default-editor GUI check and the remaining Windows/macOS observations
+are still open. Increment 4 remains incomplete.
 
 ## Verification and completion discipline
 
@@ -217,8 +221,8 @@ acceptance and explicit native verification gates. No unanswered material produc
 choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
-**Next action:** finish increment 4 desktop qualification on native macOS/Linux
-hosts and the remaining Windows desktop cases listed in PILOT.md. Preserve
+**Next action:** finish increment 4 desktop qualification on macOS and the
+remaining Windows and Linux default-editor cases listed in PILOT.md. Preserve
 identity, conflict isolation and consent contracts while recording observed
 application behavior and exact OS/app versions. The performance aim remains a measured
 target, not a release claim; no persistent service has been introduced.

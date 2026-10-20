@@ -7,8 +7,9 @@ Desky does not manage environments, own windows or shut applications down.
 
 **Current status:** workspace registration, recent-project selection, personal
 URLs and native launch adapters are implemented. Windows has desktop smoke
-evidence with follow-up checks outstanding. macOS/Linux desktop qualification
-remains open; passing automated tests does not establish desktop support.
+evidence with follow-up checks outstanding. Ubuntu 26.04.1/amd64 has passed the
+desktop smoke with configured profiles; macOS and remaining launcher checks are
+open. Passing automated tests alone does not establish desktop support.
 See [platform requirements](#platform-requirements) and the
 [recorded evidence](PILOT.md#windows-desktop-follow-up-2026-10-03).
 
@@ -38,8 +39,8 @@ Set-Location 'C:\path\to\your-project'
 & $desk .
 ```
 
-**macOS/Linux / shell:** the equivalent sequence is below. Native desktop
-behavior on these platforms still needs qualification.
+**macOS/Linux / shell:** the equivalent sequence is below. See the platform
+matrix below for tested environments and remaining desktop checks.
 
 ```sh
 desk_bin="$(pwd)/bin/desk"
@@ -121,7 +122,7 @@ Metadata inspection and dry runs do not register a checkout or write state.
 |---|---|---|
 | Windows | Native VS Code, Windows Terminal and the default browser; configure absolute `.exe` paths if defaults are unavailable | Windows 11/amd64 smoke evidence; terminal directory, browser contents and complete repeat-open follow-up remain open |
 | macOS | `code --reuse-window`, Terminal through `/usr/bin/open`, and the default browser | Adapter and native automated tests implemented; desktop qualification open |
-| Linux | `code --reuse-window` and `xdg-open`; terminal resources require an explicit `launchers.terminal` profile | Adapter and native automated tests implemented; desktop qualification open |
+| Linux | `code --reuse-window` and `xdg-open`; terminal resources require an explicit `launchers.terminal` profile | Ubuntu 26.04.1/amd64 GNOME Wayland smoke with configured profiles passed; default-editor GUI check and other environments remain unverified |
 
 On macOS/Linux, the default `code` executable must resolve from an absolute PATH
 entry outside the checkout. Linux terminal profiles must use that terminal's
@@ -193,8 +194,10 @@ on all three OSes. See [PILOT.md](PILOT.md) for actual results and remaining gat
 For Ubuntu development, create your own VM and clone this repository inside it,
 then run `bash tools/vm/bootstrap.sh` to install prerequisites and build Desky.
 The [Ubuntu setup workflow](tools/vm/README.md) also provides optional desktop
-qualification with isolated reports. Actual package setup and desktop acceptance
-remain open.
+qualification with isolated reports. Repeated setup with installed prerequisites
+and the Ubuntu desktop smoke with configured profiles have passed; installing missing
+packages on a fresh machine remains unverified. See the
+[Ubuntu evidence](PILOT.md#2026-10-20-native-ubuntu-setup-and-launcher-qualification).
 
 | Document | Purpose |
 |---|---|

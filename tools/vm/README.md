@@ -50,7 +50,11 @@ Desky invocations using isolated configuration, personal data, state and fixture
 Inspect VS Code, GNOME Terminal's `pwd`, the browser URL/content and GNOME Text
 Editor's note. Answer each observation with `p`, `f` or Enter for unverified.
 Keep the applications open so their survival after Desky exits can be observed.
-Actual consent prompts and desktop-session checks remain enabled.
+Actual consent prompts and desktop-session checks remain enabled. For the
+control-return observation, watch whether the first observation question appears
+promptly after approving the launch; leave it unverified if you did not check.
+The editor profile uses `--new-window`, so repeat entry can create another editor
+window; terminal windows and browser/note tabs follow each application's behavior.
 
 Each run writes its report, verification log and fixtures under
 `.cache/vm-runs/<run-id>/`. The script prints the report path. Copy a selected
@@ -92,8 +96,12 @@ than an old transferred revision directory.
 
 Linux tests exercise real temporary Git clones, exact source checks, locking,
 repeat setup and recovery from a partial setup failure. Package installation and
-GUI interaction are mocked in those tests. Actual package installation and native
-desktop observations remain acceptance gates; increment 4 remains open.
+GUI interaction are mocked in those tests. A real Ubuntu 26.04.1/amd64 GNOME
+Wayland run at `b57f04c` passed bootstrap twice with installed prerequisites and
+all eight desktop observations; exact versions and failed/incomplete attempts are
+recorded in [PILOT](../../PILOT.md#2026-10-20-native-ubuntu-setup-and-launcher-qualification).
+Installing missing packages on a fresh machine and the remaining platform/default
+profile observations stay unverified; increment 4 remains open.
 
 ```sh
 bash -n tools/vm/bootstrap.sh

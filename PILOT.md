@@ -454,7 +454,7 @@ Actual desktop matrix and outstanding qualification:
 |---|---|---|
 | Windows 11 build 26200 / amd64 | Increment 2 user-confirmed smoke; increment 4 follow-up above adds actual consent, four-resource dispatch, native failure reporting, and editor/Notepad window survival and document inspection | Post-change visible terminal CWD, browser contents and fully observed repeat-open; real noninteractive-station fixture was denied on this host |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
-| Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Two actual bootstrap runs and native/race checks passed on 2026-10-20; default Snap editor lookup defect reproduced and repaired; desktop observation prompts pending | Observed editor, configured terminal CWD, browser contents and named app; consent completion, repeat-open, return to CLI and application survival; other Linux distributions/architectures unverified |
+| Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Bootstrap twice, native/race checks and all eight user-observed desktop checks passed at `b57f04c`; VS Code 1.142.0, GNOME Terminal 3.58.0, Firefox 158.0, Text Editor 50.1 | Default editor GUI behavior still needs observation: the passed recipe used explicit `code --new-window`; other Linux distributions/architectures remain unverified |
 
 On each newly available desktop, use isolated device/personal storage and a
 disposable checkout with spaces and shell metacharacters. Record actual visible
@@ -739,12 +739,13 @@ global Codex configuration needs to be rolled back.
   isolated repetitions. Running `go run ./tools/verify -race` without concurrent
   restricted commands passed vet, regular tests, race tests and the native build.
   The initial failing log is retained; no storage validation was weakened.
-- Started the documented `python3 tools/vm/guest.py qualify .` in a native desktop
-  terminal. Run `2486acfdb7d943768948316fb8ef06da` belongs to the baseline above;
-  its verification log passes the native/race runner. Visual observations remain
-  **unverified** until answered by the user in that run's prompts. The report and
-  fixtures remain under `.cache/vm-runs/2486acfdb7d943768948316fb8ef06da/`;
-  bootstrap and investigation logs are preserved in its `fixture/evidence/`.
+- Ran the documented `python3 tools/vm/guest.py qualify .` in a native desktop
+  terminal. Baseline run `2486acfdb7d943768948316fb8ef06da` passed automated checks
+  and seven observations; prompt return of control was not directly observed and
+  remains **unverified**. Both launches exited 0, but that does not retrospectively
+  establish prompt return. Its original `result: incomplete` report remains intact
+  in the original checkout under `.cache/vm-runs/2486acfdb7d943768948316fb8ef06da/`;
+  bootstrap and investigation logs remain in its `fixture/evidence/`.
   No session variables, session checks or interactive consent were bypassed.
 - A separate isolated default-editor dry run exposed a confirmed native lookup
   defect: this host's `/snap/bin/code` symlink was replaced with `/usr/bin/snap`.
@@ -761,6 +762,31 @@ global Codex configuration needs to be rolled back.
   including native tests, race tests, native build and six cross-platform builds.
   Independent focused review found no actionable defects. This is lookup, process
   and compilation evidence, not a substitute for observing application windows.
-- Increment 4 remains **open**. Retain all failed and unanswered observations;
-  the remaining Windows/macOS evidence and native desktop checks above are still
-  required before making a complete platform qualification or release claim.
+- Repeated bootstrap twice against repaired commit
+  `b57f04ca0cc2e6a6c229a7bc3d92b7622081142e`. Both commands exited 0 with identical
+  metadata and binary SHA-256
+  `f641b649037bacdfd61cd9b16922527f418a56c7833c9ea1fdba9d1bd7a9c38e`.
+  An earlier attempt timed out waiting for sudo authentication and exited 1 before
+  bootstrap completed or qualification began; its log is preserved, not counted
+  as a Desky dispatch timeout. The user entered passwords only in the terminal.
+- Repaired-commit run `2653b44be959453b85d39d4d9d92b04d` completed with
+  `result: passed`, source integrity passed, the native/race runner passed, both
+  entry exits 0, and unchanged parent CWD. The user explicitly marked all eight
+  observations passed: consent, editor directory, terminal `pwd`, browser URL and
+  contents, named-app note, prompt return, application survival, and repeat-open
+  without renewed consent. VS Code was 1.142.0, Firefox 158.0, GNOME Terminal 3.58.0
+  with VTE 0.84.0, and GNOME Text Editor 50.1 with GTK 4.22.4/GtkSourceView 5.18.0.
+  The report, verification log and fixtures remain under
+  `.cache/vm-runs/2653b44be959453b85d39d4d9d92b04d/` in the task worktree;
+  `fixture/evidence/` retains bootstrap metadata, terminal transcript and the
+  earlier sudo-timeout logs. The passed run does not overwrite the baseline's
+  unverified observation or the failed bootstrap attempt.
+- The user reported no failures on repeat entry, a second VS Code window and
+  additional note/browser tabs. The fixture explicitly selects `code --new-window`;
+  window/tab reuse otherwise belongs to each application. These observations match
+  the launch policy and do not establish default `code --reuse-window` GUI behavior.
+- Increment 4 remains **open**. The remaining Windows/macOS evidence and the
+  Linux default-editor desktop check above are still required. Installing missing
+  prerequisites on a fresh Ubuntu machine remains unverified; successful reuse of
+  installed packages is not evidence of that installation path. Public release
+  and support beyond the exact tested matrix remain separate decisions.
