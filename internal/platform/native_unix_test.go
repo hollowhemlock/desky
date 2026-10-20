@@ -97,6 +97,34 @@ func TestUnixLookupAndProfiles(t *testing.T) {
 	})
 }
 
+func TestUnixDefaultLauncherPreservesSymlinkName(t *testing.T) {
+	for _, tc := range []struct{ kind, name string }{{"editor", "code"}, {"url", "xdg-open"}} {
+		t.Run(tc.kind, func(t *testing.T) {
+			root, installed := t.TempDir(), t.TempDir()
+			receipt := filepath.Join(t.TempDir(), "invoked-name")
+			t.Setenv("DESKY_TEST_LAUNCHER_RECEIPT", receipt)
+			backend := executableFixture(t, installed, "multicall", `printf '%s' "${0##*/}" > "$DESKY_TEST_LAUNCHER_RECEIPT"`)
+			if err := os.Symlink(backend, filepath.Join(installed, tc.name)); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", installed)
+			p, wait, err := resolveUnix("linux", tc.kind, workspace.Profile{}, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = (Native{}).Dispatch(Action{Type: tc.kind, Executable: p.Executable,
+				Args: []string{"--reuse-window", root}, Target: "https://example.com/", Directory: root, Wait: wait})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(receipt)
+			if err != nil || string(got) != tc.name {
+				t.Fatalf("launcher invoked as %q, want %q: %v", got, tc.name, err)
+			}
+		})
+	}
+}
+
 func TestUnixDefaultEditorFailure(t *testing.T) {
 	root, installed := t.TempDir(), t.TempDir()
 	executableFixture(t, installed, "code", "exit 42")

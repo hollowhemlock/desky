@@ -77,10 +77,13 @@ func lookupUnix(name, root string) string {
 		if err != nil || inside(root, realDir) {
 			continue
 		}
-		candidate, err := filepath.EvalSymlinks(filepath.Join(realDir, name))
-		if err != nil || inside(root, candidate) || !unixExecutable(candidate) {
+		candidate := filepath.Join(realDir, name)
+		real, err := filepath.EvalSymlinks(candidate)
+		if err != nil || inside(root, real) || !unixExecutable(real) {
 			continue
 		}
+		// Validate the resolved target, but retain the launcher name: multicall
+		// executables such as Snap select the application from argv[0].
 		return candidate
 	}
 	return ""

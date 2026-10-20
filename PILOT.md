@@ -454,7 +454,7 @@ Actual desktop matrix and outstanding qualification:
 |---|---|---|
 | Windows 11 build 26200 / amd64 | Increment 2 user-confirmed smoke; increment 4 follow-up above adds actual consent, four-resource dispatch, native failure reporting, and editor/Notepad window survival and document inspection | Post-change visible terminal CWD, browser contents and fully observed repeat-open; real noninteractive-station fixture was denied on this host |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
-| Linux / architecture not yet exercised on a desktop | No desktop host available in this task | Exact distro/session/architecture/app versions; editor, configured terminal, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
+| Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Two actual bootstrap runs and native/race checks passed on 2026-10-20; default Snap editor lookup defect reproduced and repaired; desktop observation prompts pending | Observed editor, configured terminal CWD, browser contents and named app; consent completion, repeat-open, return to CLI and application survival; other Linux distributions/architectures unverified |
 
 On each newly available desktop, use isolated device/personal storage and a
 disposable checkout with spaces and shell metacharacters. Record actual visible
@@ -718,3 +718,49 @@ global Codex configuration needs to be rolled back.
 - The guest shell syntax check and full Windows native verification pass; the
   existing nonfatal Go metadata-cache permission warning remains. Increment 4
   stays open until the outstanding platform observations are recorded.
+
+### 2026-10-20: native Ubuntu setup and launcher qualification
+
+- Host: Ubuntu 26.04.1 LTS / amd64, GNOME Wayland (`ubuntu:GNOME`),
+  Python 3.14.4 and Go 1.27.0. Baseline tested:
+  `fad3e7492486f33b08dd1ef1b02675322bae59d9`.
+- Ran the documented `bash tools/vm/bootstrap.sh` twice in a visible desktop
+  terminal, with the user entering sudo authentication directly. Both exited 0,
+  recorded identical setup metadata and produced identical `bin/desk` hashes
+  (`58b8b5325658d75502e8ce57bc85e50ba6ec389cfb769ba087a0a287a4dd166a`).
+  `./bin/desk --help` exited 0. This host already had the required applications
+  and packages: actual setup/rebuild repeatability is evidenced, but installing
+  missing packages and adding a package source on a fresh machine remain unverified.
+- `bash -n tools/vm/bootstrap.sh` and all 13 Python workflow tests passed.
+  The first native runner attempt failed with storage-overlap errors in CLI,
+  launch and resource tests. Inspection found a transient `/tmp/.git` boundary
+  visible to restricted commands and absent from the ordinary desktop context;
+  these tests discover parent Git boundaries. The affected tests passed three
+  isolated repetitions. Running `go run ./tools/verify -race` without concurrent
+  restricted commands passed vet, regular tests, race tests and the native build.
+  The initial failing log is retained; no storage validation was weakened.
+- Started the documented `python3 tools/vm/guest.py qualify .` in a native desktop
+  terminal. Run `2486acfdb7d943768948316fb8ef06da` belongs to the baseline above;
+  its verification log passes the native/race runner. Visual observations remain
+  **unverified** until answered by the user in that run's prompts. The report and
+  fixtures remain under `.cache/vm-runs/2486acfdb7d943768948316fb8ef06da/`;
+  bootstrap and investigation logs are preserved in its `fixture/evidence/`.
+  No session variables, session checks or interactive consent were bypassed.
+- A separate isolated default-editor dry run exposed a confirmed native lookup
+  defect: this host's `/snap/bin/code` symlink was replaced with `/usr/bin/snap`.
+  The resulting `snap --reuse-window <fixture>` exited 64 with an unknown-flag
+  error. The qualification recipe uses an explicit editor profile, so that
+  recipe alone cannot establish correctness of the default editor lookup.
+- Fixed default Unix lookup to validate the resolved symlink target while
+  retaining the executable's invocation name. Actual-dispatch regression tests
+  for `code` and `xdg-open` symlink names failed before the fix and pass after it;
+  existing checkout-exclusion and helper-failure cases also pass. The rebuilt
+  default plan selects `/snap/bin/code`, whose `--version` invocation succeeds
+  with VS Code 1.142.0 (`6d62b1d5dace93a33b3a6d3eca1317bd5e15bcb1`, x64).
+  The full `go run ./tools/verify -race -cross` gate passed after the fix,
+  including native tests, race tests, native build and six cross-platform builds.
+  Independent focused review found no actionable defects. This is lookup, process
+  and compilation evidence, not a substitute for observing application windows.
+- Increment 4 remains **open**. Retain all failed and unanswered observations;
+  the remaining Windows/macOS evidence and native desktop checks above are still
+  required before making a complete platform qualification or release claim.
