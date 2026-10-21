@@ -172,9 +172,11 @@ transfer are outside this tooling. On 2026-10-20, Ubuntu 26.04.1/amd64 GNOME
 Wayland passed repeated bootstrap with installed prerequisites and all eight
 desktop observations with configured profiles at `b57f04c`. The default editor
 without an override also passed its desktop check at `534ca89` on 2026-10-21.
-PILOT.md records exact versions and retained failures. Installing missing packages
-on a fresh machine and the remaining Windows/macOS observations are still open.
-Increment 4 remains incomplete.
+Windows build 26200.9457/amd64 also passed the four-application desktop smoke and
+repeat opening at `02ae4f1` on 2026-10-21. PILOT.md records exact versions and
+retained failures. The real Windows noninteractive-station fixture, macOS desktop
+qualification and missing-package installation on a fresh Ubuntu machine remain
+unverified. Increment 4 remains incomplete.
 
 ## Verification and completion discipline
 
@@ -222,9 +224,9 @@ acceptance and explicit native verification gates. No unanswered material produc
 choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
-**Next action:** finish increment 4 desktop qualification on macOS and the
-remaining Windows cases listed in PILOT.md, and exercise missing-prerequisite
-installation on a fresh Ubuntu machine. Preserve identity, conflict isolation and
-consent contracts while recording observed
-application behavior and exact OS/app versions. The performance aim remains a measured
-target, not a release claim; no persistent service has been introduced.
+**Next action:** finish increment 4 desktop qualification on macOS, exercise the
+Windows noninteractive-station test on a host that permits its isolated fixture,
+and test missing-prerequisite installation on a fresh Ubuntu machine. Preserve
+identity, conflict isolation and consent contracts while recording observed
+application behavior and exact OS/app versions. The performance aim remains a
+measured target, not a release claim; no persistent service has been introduced.

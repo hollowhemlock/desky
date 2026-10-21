@@ -2,8 +2,9 @@
 
 Read the affected contracts in [SPEC.md](../SPEC.md) before changing behavior.
 Workspace metadata, personal URL records, the MRU picker and Windows entry are
-implemented. macOS/Linux native adapters are implemented with desktop qualification
-still open; see the actual verification matrix in [PILOT](../PILOT.md).
+implemented. Native adapters exist on all three platforms; the recorded Windows
+and Ubuntu desktop checks pass. macOS qualification and other verification gates
+remain open; see the exact tested environments and limits in [PILOT](../PILOT.md).
 
 | Area | Implementation | Verification |
 |---|---|---|

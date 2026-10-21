@@ -452,7 +452,7 @@ Actual desktop matrix and outstanding qualification:
 
 | Host | Desktop evidence | Remaining gate |
 |---|---|---|
-| Windows 11 build 26200 / amd64 | Increment 2 user-confirmed smoke; increment 4 follow-up above adds actual consent, four-resource dispatch, native failure reporting, and editor/Notepad window survival and document inspection | Post-change visible terminal CWD, browser contents and fully observed repeat-open; real noninteractive-station fixture was denied on this host |
+| Windows build 26200.9457 / amd64, 25H2 | Four-application desktop smoke and repeat opening passed at `02ae4f1`: consent, editor folder, terminal directory, browser URL/content, named-app note, return of control and app survival; native tests and six cross-builds passed; details in the 2026-10-21 entry below | Real noninteractive-station fixture denied on this host; Windows race testing unavailable without a C compiler |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
 | Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Bootstrap twice and all eight desktop observations passed at `b57f04c`; default editor with no override passed at `534ca89`; native/race checks passed; VS Code 1.142.0, GNOME Terminal 3.58.0, Firefox 158.0, Text Editor 50.1 | Installing missing prerequisites on a fresh machine remains unverified; other Linux distributions/architectures remain unverified |
 
@@ -825,3 +825,56 @@ global Codex configuration needs to be rolled back.
   installing missing prerequisites on a fresh Ubuntu machine and the outstanding
   Windows/macOS observations still lack evidence. Other environments and public
   distribution/support remain outside the tested matrix.
+
+### 2026-10-21: Windows qualification after Ubuntu integration
+
+- Fast-forward merged `codex/ubuntu-desktop-qualification` through `02ae4f1`
+  into `feat/native-platform-boundary`, retaining the launcher fix and both
+  Ubuntu evidence commits. Tested the merged revision
+  `02ae4f10dfe481e0f175850eaf22f63f5ae1bfd6` without application changes.
+- Host: Windows build 26200.9457 / amd64 (25H2), PowerShell 7.6.6,
+  Go 1.27.2, VS Code 1.142.0, Windows Terminal 1.25.2733.0, Firefox 158.0,
+  Notepad package 11.2607.14.0 (native launcher 10.0.26100.8457).
+- `go run ./tools/verify -cross` passed formatting, vet, all native suites,
+  the native build and six cross-builds in the normal host context. The first
+  restricted-context attempt failed because the sandbox denied native filesystem
+  operations, including hard-link publication; no persistence checks were weakened.
+  Windows race testing remains unavailable with CGO disabled and no C compiler.
+- A separate uncached `TestInvisibleWindowStation` run still skipped because
+  Windows denied creation of its isolated noninteractive station. An exit-zero
+  test process does not establish that skipped behavior. The test never switched
+  the active desktop; this qualification limitation remains open.
+- Prepared `.cache/windows-qualification-20261021` with isolated device/personal
+  storage and `-Desky Windows 20261021 雪 & spaces; punctuation` as its workspace.
+  The recipe uses native Code with `--new-window`, default Windows Terminal,
+  `https://example.com/#desky-windows-20261021` and a disposable Notepad document.
+  The real console consent prompt accepted `y` through the PTY. All four actions
+  dispatched, Desky exited 0 promptly after approval and parent CWD was unchanged.
+  Readback retained approval and entry count 1. The 17.875-second total includes
+  waiting at the consent prompt and is not a launch-latency measurement.
+- Computer Use observed the exact fixture basename in VS Code after CLI exit.
+  The existing Todo Tree missing-ripgrep notification was left unchanged.
+  Browser inspection then stopped explicitly because URL-policy enforcement is
+  unsupported for the current Windows browser. No further UI automation or
+  browser-policy workaround was attempted. The skill also prohibits terminal
+  automation. The user subsequently confirmed the exact terminal directory via
+  `Get-Location`, Example Domain at the expected URL, and the named Notepad file
+  with the expected contents and directory. The browser and note remained open
+  after CLI exit; these are human observations, separate from dispatch results.
+- A second invocation reused the approved recipe without another consent prompt.
+  All four actions dispatched and Desky exited 0 in 0.596 seconds, with parent CWD
+  unchanged. Readback retained the same checkout/workspace IDs and approved trust,
+  with entry count 2. The user confirmed a correct new terminal window and Firefox
+  tab, with VS Code using the same window and Notepad the same tab. These views
+  remained available after Desky exited. Actual window/tab reuse is recorded as
+  observed; successful dispatch alone was not counted as a visual check.
+- The ignored run directory retains the fixture script, dry-run plan, transcript,
+  both invocations' results/readback, verification log, station-test skip and an
+  individually recorded `report.json`. Its desktop-smoke result is passed; the
+  skipped station test and unavailable race check remain explicit limitations.
+  The binary SHA-256 is
+  `070aa4a587e551a58b4cd9b7fc63dd4db81d02d7d7badc546bf32ee8f8453b92`.
+  Focused self-review covered the merged launcher fix, its regression tests and
+  updated evidence/navigation; no actionable defects were found. No application
+  code changed in this Windows follow-up. Increment 4 remains open for the station
+  fixture, macOS desktop evidence and fresh Ubuntu prerequisite installation.

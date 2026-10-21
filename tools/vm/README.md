@@ -102,8 +102,10 @@ all eight desktop observations; exact versions and failed/incomplete attempts ar
 recorded in [PILOT](../../PILOT.md#2026-10-20-native-ubuntu-setup-and-launcher-qualification).
 A separate [default editor desktop check](../../PILOT.md#2026-10-21-default-editor-desktop-qualification)
 with no editor override passed at `534ca89`. Installing missing packages on a fresh
-machine and the remaining Windows/macOS observations stay unverified; increment 4
-remains open.
+machine remains unverified. Windows desktop observations have also passed; macOS
+desktop qualification and the Windows noninteractive-station fixture remain open.
+See the [current platform evidence](../../PILOT.md#2026-10-21-windows-qualification-after-ubuntu-integration);
+increment 4 remains incomplete.
 
 ```sh
 bash -n tools/vm/bootstrap.sh
