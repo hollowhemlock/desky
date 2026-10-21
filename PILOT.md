@@ -452,7 +452,7 @@ Actual desktop matrix and outstanding qualification:
 
 | Host | Desktop evidence | Remaining gate |
 |---|---|---|
-| Windows build 26200.9457 / amd64, 25H2 | Four-application desktop smoke and repeat opening passed at `02ae4f1`: consent, editor folder, terminal directory, browser URL/content, named-app note, return of control and app survival; native tests and six cross-builds passed; details in the 2026-10-21 entry below | Real noninteractive-station fixture denied on this host; Windows race testing unavailable without a C compiler |
+| Windows build 26200.9457 / amd64, 25H2 | Four-application desktop smoke and repeat opening passed at `02ae4f1`: consent, editor folder, terminal directory, browser URL/content, named-app note, return of control and app survival; native tests and six cross-builds passed; revised noninteractive-station fixture passed under a non-admin token in the follow-up below | Windows race testing unavailable without a C compiler |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
 | Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Bootstrap twice and all eight desktop observations passed at `b57f04c`; default editor with no override passed at `534ca89`; native/race checks passed; VS Code 1.142.0, GNOME Terminal 3.58.0, Firefox 158.0, Text Editor 50.1 | Installing missing prerequisites on a fresh machine remains unverified; other Linux distributions/architectures remain unverified |
 
@@ -878,3 +878,29 @@ global Codex configuration needs to be rolled back.
   updated evidence/navigation; no actionable defects were found. No application
   code changed in this Windows follow-up. Increment 4 remains open for the station
   fixture, macOS desktop evidence and fresh Ubuntu prerequisite installation.
+
+### 2026-10-21: noninteractive Windows station fixture
+
+- The user's direct rerun of `TestInvisibleWindowStation` still skipped with
+  access denied. The test supplied a custom station name, which
+  [Windows restricts to administrators](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowstationw).
+  Updated the fixture to let Windows choose a name for the logon session, request
+  only attribute-read access and close the returned handle without switching the
+  process station. Desky's application/session-detection code is unchanged.
+- Before invoking the production predicate, the test now independently requires a
+  successful attributes query with `WSF_VISIBLE` clear. Query failure cannot count
+  as successful rejection of a real noninteractive station. The test also confirms
+  the process station remains unchanged. Access-denied creation remains an explicit
+  skip on hosts whose policies still prevent the fixture.
+- On the same Windows host with Go 1.27.2, based on `3792626` plus this fixture
+  change, the focused test passed twice with `-count=2 -v`, without skips. The host
+  process reported `Administrator token: False`. The full `go run ./tools/verify`
+  passed formatting, vet, native tests and native build, reusing applicable cached
+  results for unchanged packages. Focused self-review found no actionable defects.
+- Logs are retained under
+  `.cache/windows-qualification-20261021/station-fixture-fix/`. Earlier denied
+  attempts and the desktop report remain intact. This closes the real Windows
+  noninteractive-station fixture gate; it does not establish GUI behavior in
+  unsupported sessions. Local Windows race testing still needs a compatible C
+  compiler and CGO. macOS desktop qualification and fresh Ubuntu prerequisite
+  installation remain open.

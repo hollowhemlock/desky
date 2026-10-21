@@ -8,9 +8,9 @@ Desky does not manage environments, own windows or shut applications down.
 **Current status:** workspace registration, recent-project selection, personal
 URLs and native launch adapters are implemented. The tested Windows/amd64 desktop
 flow passed, including repeat opening. Ubuntu 26.04.1/amd64 passed with configured
-profiles and the default editor. macOS desktop qualification and the Windows
-noninteractive-session test remain open. Passing automated tests alone does not
-establish desktop support.
+profiles and the default editor. The Windows noninteractive-session fixture also
+passed; macOS desktop qualification remains open. Passing automated tests alone
+does not establish desktop support.
 See [platform requirements](#platform-requirements) and the
 [recorded evidence](PILOT.md#2026-10-21-windows-qualification-after-ubuntu-integration).
 
@@ -121,7 +121,7 @@ Metadata inspection and dry runs do not register a checkout or write state.
 
 | Platform | Default launchers and required setup | Desktop verification |
 |---|---|---|
-| Windows | Native VS Code, Windows Terminal and the default browser; configure absolute `.exe` paths if defaults are unavailable | Windows build 26200.9457/amd64 desktop smoke and repeat opening passed; real noninteractive-session fixture remains unverified |
+| Windows | Native VS Code, Windows Terminal and the default browser; configure absolute `.exe` paths if defaults are unavailable | Windows build 26200.9457/amd64 desktop smoke, repeat opening and real noninteractive-session fixture passed; local race testing still needs a C compiler |
 | macOS | `code --reuse-window`, Terminal through `/usr/bin/open`, and the default browser | Adapter and native automated tests implemented; desktop qualification open |
 | Linux | `code --reuse-window` and `xdg-open`; terminal resources require an explicit `launchers.terminal` profile | Ubuntu 26.04.1/amd64 GNOME Wayland smoke with configured profiles and the default editor passed; other environments remain unverified |
 
