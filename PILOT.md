@@ -452,7 +452,7 @@ Actual desktop matrix and outstanding qualification:
 
 | Host | Desktop evidence | Remaining gate |
 |---|---|---|
-| Windows build 26200.9457 / amd64, 25H2 | Four-application desktop smoke and repeat opening passed at `02ae4f1`: consent, editor folder, terminal directory, browser URL/content, named-app note, return of control and app survival; native tests and six cross-builds passed; revised noninteractive-station fixture passed under a non-admin token in the follow-up below | Windows race testing unavailable without a C compiler |
+| Windows build 26200.9457 / amd64, 25H2 | Four-application desktop smoke and repeat opening passed at `02ae4f1`: consent, editor folder, terminal directory, browser URL/content, named-app note, return of control and app survival; native tests and six cross-builds passed; revised noninteractive-station fixture passed under a non-admin token; native race tests passed with fresh MSYS2 UCRT64 GCC in the follow-up below | No outstanding Windows checks for this tested matrix; other versions/architectures remain unverified |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
 | Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Bootstrap twice and all eight desktop observations passed at `b57f04c`; default editor with no override passed at `534ca89`; native/race checks passed; VS Code 1.142.0, GNOME Terminal 3.58.0, Firefox 158.0, Text Editor 50.1 | Installing missing prerequisites on a fresh machine remains unverified; other Linux distributions/architectures remain unverified |
 
@@ -904,3 +904,43 @@ global Codex configuration needs to be rolled back.
   unsupported sessions. Local Windows race testing still needs a compatible C
   compiler and CGO. macOS desktop qualification and fresh Ubuntu prerequisite
   installation remain open.
+
+### 2026-10-21: repeatable native race verification
+
+- Implemented the reviewed plan on baseline `2be597a`: standalone `-race-check`,
+  prerequisite checks before `-race`, uncached race tests and unchanged ordinary
+  verification/cross-build behavior. The readiness probe requires a startup marker
+  from the instrumented test binary and a successful package result; a compile-only
+  `[no test files]` result or an execution wrapper that skips the binary cannot
+  establish readiness. No project tests run during that probe.
+- Compiler and Go settings are inspected without changing saved configuration.
+  CGO is enabled only in race-related child environments; ordinary commands retain
+  their environment and cross-builds disable CGO. README documents explicit setup,
+  native-target overrides that can prevent the outer `go run` from starting, and
+  detector limitations. Application contracts and dependency manifests are unchanged.
+- Focused tests passed for missing/incompatible compilers and runtime libraries,
+  unsupported/mismatched targets, quoted compiler paths/arguments, build/startup
+  failures, probe execution evidence, flag conflicts, timeout/failure propagation
+  and environment isolation. Independent review found no actionable defects.
+- Before installing a compiler, actual `-race-check` failed with an actionable
+  missing-GCC diagnostic, while ordinary verification passed. For fresh setup,
+  downloaded the official MSYS2 2026-09-27 x86_64 archive, checked its published
+  SHA-256 (`ea2f31a0b6ade63914ce441ffb022f0f6aa96982bfefa2326460a26d5fb01322`),
+  extracted it into ignored task storage and installed UCRT64 GCC after MSYS2's
+  required update/restart sequence. No persistent host PATH or Go setting changed.
+- On Windows build 26200.9457/amd64 with Go 1.27.2, GCC 16.2.0 (MSYS2 revision 6)
+  and mingw-w64 CRT `14.0.0.r495.g63ebe6cdb-1`, real readiness and full
+  `go run ./tools/verify -race -cross` passed: formatting, vet, ordinary suites,
+  uncached native race suites, native build and all six cross-builds. Existing
+  concurrency/subprocess assertions needed no changes. A separate readiness run
+  passed through a compiler path containing spaces with caller `CGO_ENABLED=0`,
+  which remained 0 afterward.
+- Setup/version manifests and all local logs remain under
+  `.cache/race-setup-20261021/`; the isolated compiler is under its `msys64/`
+  directory. Earlier missing-compiler and station-skip evidence remains intact.
+  Windows race qualification is now complete for this environment.
+- CI now requires race verification on all three native OS jobs, with explicit
+  Windows UCRT64 GCC provisioning and native PowerShell execution. Linux retains
+  cross-builds and VM-script checks. Successful remote execution is pending at
+  this entry; workflow configuration alone is not evidence of a pass. macOS GUI
+  qualification and fresh Ubuntu prerequisite installation remain open.

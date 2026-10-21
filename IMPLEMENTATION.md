@@ -159,9 +159,9 @@ and hard-link publication remain the persistence implementation; recovery,
 concurrent registry/resource and privacy tests run on each CI host.
 
 The runner's `-cross` option builds Windows/macOS/Linux for amd64 and arm64;
-Linux CI also runs the race detector. These are executable verification gates,
-not a desktop support claim. See PILOT.md for actual check results and the exact
-desktop matrix. Complete the remaining native desktop smoke checks before marking
+all three native CI jobs require the race detector. These are executable
+verification gates, not a desktop support claim. See PILOT.md for results and the
+exact desktop matrix. Complete the remaining native desktop smoke checks before marking
 this increment fully qualified; no installer or release publication is included.
 
 Optional [Ubuntu development tooling](tools/vm/README.md) runs from a repository
@@ -176,17 +176,55 @@ Windows build 26200.9457/amd64 also passed the four-application desktop smoke an
 repeat opening at `02ae4f1` on 2026-10-21. PILOT.md records exact versions and
 retained failures. The Windows noninteractive-station fixture subsequently passed
 with a system-generated name and verified readable attributes under a non-admin
-token. Windows race testing still needs a compatible C compiler; macOS desktop
-qualification and missing-package installation on a fresh Ubuntu machine remain
+token. Windows race testing also passed with a fresh MSYS2 UCRT64 compiler.
+macOS desktop qualification and missing-package installation on a fresh Ubuntu machine remain
 unverified. Increment 4 remains incomplete.
+
+## Race testing support plan
+
+Status: implemented and verified on Windows, including fresh compiler setup.
+Native CI results are recorded separately in PILOT.md when available.
+
+Extend the existing runner with standalone `-race-check` prerequisite inspection.
+Keep ordinary verification unchanged; `-race` checks readiness before normal
+verification and an uncached race suite, and `-race -cross` retains uninstrumented
+cross-builds. Reject combining `-race-check` with either other option. Enable CGO
+only in race-related child environments; do not install packages or alter saved
+Go settings, system PATH or application contracts/dependencies.
+
+Query Go's host/target/compiler settings, require a native target and ask Go whether
+`runtime/race` is supported. Check the selected compiler on non-Darwin hosts,
+including Windows' `libsynchronization.a` requirement, respecting Go-compatible
+compiler quoting and arguments. Then build and execute a race-instrumented test
+binary with `go test -race -count=1 -run=^$ ./tools/verify`. The runner's focused
+test files must ensure this links and executes a binary; `[no test files]` is not
+readiness evidence. Verify build and startup failures propagate as failures.
+
+Document fresh-clone setup for Windows MSYS2 UCRT64, Linux compiler prerequisites
+and macOS readiness/troubleshooting. Explicitly explain that cross-target GOOS or
+GOARCH settings can prevent the outer `go run ./tools/verify` from starting before
+its own diagnostics execute; clear those overrides for native verification.
+Distinguish detector availability from desktop qualification and describe its
+execution-path coverage and resource cost.
+
+Require race verification in Windows, macOS and Linux CI. Provision Windows GCC
+with `msys2/setup-msys2@v2`, select UCRT64 via its installation-path output in
+native PowerShell, and retain Linux cross-builds and VM-script tests. Validate
+missing/incompatible compilers, unsupported/mismatched targets, quoted paths,
+environment isolation and failure propagation. Exercise native race tests and
+fresh Windows toolchain setup, recording actual versions/results in PILOT.md.
+Configured CI and successful CI runs remain distinct evidence. Implement checks
+and focused tests first, then documentation/CI; review and repair confirmed
+in-scope defects without weakening concurrency or subprocess assertions.
 
 ## Verification and completion discipline
 
 Start with affected Go package tests; the full gate is now maintained by
 [tools/verify/main.go](tools/verify/main.go), invoked as documented in README.
 Run race checks on hosts/toolchains that support them for changed concurrent
-persistence. CI invokes the same runner on the three target OSes and adds a
-Linux race check; a configured workflow is not evidence of a successful run.
+persistence. CI invokes the same runner on the three target OSes and adds
+race checks on all three OSes; a configured workflow is not evidence of a
+successful run.
 An interface test must exercise observable behavior, not just mirror private code.
 
 Each increment documents actual implementation, constraints and verification via
@@ -227,8 +265,7 @@ choice blocks implementation; successful platform behavior and public release
 readiness are not established by this review.
 
 **Next action:** finish increment 4 desktop qualification on macOS and test
-missing-prerequisite installation on a fresh Ubuntu machine. Windows race testing
-can also be completed after configuring a compatible C compiler and CGO. Preserve
+missing-prerequisite installation on a fresh Ubuntu machine. Preserve
 identity, conflict isolation and consent contracts while recording observed
 application behavior and exact OS/app versions. The performance aim remains a
 measured target, not a release claim; no persistent service has been introduced.

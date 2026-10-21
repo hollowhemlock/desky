@@ -19,8 +19,24 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - if: runner.os != 'Linux'
-        run: go run ./tools/verify
+      - if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          $compilerDir = Join-Path $env:MSYS2_LOCATION 'ucrt64/bin'
+          $env:Path = "$compilerDir;$env:Path"
+          $env:CC = '"' + (Join-Path $compilerDir 'gcc.exe') + '"'
+          go run ./tools/verify -race
+      - if: runner.os == 'macOS'
+        run: go run ./tools/verify -race
       - if: runner.os == 'Linux'
         run: go run ./tools/verify -race -cross
       - if: runner.os == 'Linux'

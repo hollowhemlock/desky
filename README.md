@@ -121,7 +121,7 @@ Metadata inspection and dry runs do not register a checkout or write state.
 
 | Platform | Default launchers and required setup | Desktop verification |
 |---|---|---|
-| Windows | Native VS Code, Windows Terminal and the default browser; configure absolute `.exe` paths if defaults are unavailable | Windows build 26200.9457/amd64 desktop smoke, repeat opening and real noninteractive-session fixture passed; local race testing still needs a C compiler |
+| Windows | Native VS Code, Windows Terminal and the default browser; configure absolute `.exe` paths if defaults are unavailable | Windows build 26200.9457/amd64 desktop smoke, repeat opening, noninteractive-session fixture and native race tests passed; race setup used MSYS2 UCRT64 GCC |
 | macOS | `code --reuse-window`, Terminal through `/usr/bin/open`, and the default browser | Adapter and native automated tests implemented; desktop qualification open |
 | Linux | `code --reuse-window` and `xdg-open`; terminal resources require an explicit `launchers.terminal` profile | Ubuntu 26.04.1/amd64 GNOME Wayland smoke with configured profiles and the default editor passed; other environments remain unverified |
 
@@ -180,17 +180,85 @@ revision history, publication and recovery limits in detail.
 ## Development and verification
 
 The authoritative [verification runner](tools/verify/main.go) is shared with
-[CI](.github/workflows/verify.yml). From the repository root:
+[CI](.github/workflows/verify.yml). For a fresh clone, install the Go version in
+[go.mod](go.mod) or a compatible newer release, configure the compiler as described
+below, then check readiness and run verification from the repository root:
 
 ```sh
-go run ./tools/verify             # Formatting, vet, tests and native build
-go run ./tools/verify -race -cross # Also race tests and six cross-platform builds
+go run ./tools/verify -race-check  # Check setup; build and execute a race probe
+go run ./tools/verify -race        # Normal verification plus uncached race tests
+go run ./tools/verify             # Formatting, vet, tests and native build only
+go run ./tools/verify -race -cross # Also six uninstrumented cross-platform builds
 ```
 
-Race checks require a supported C toolchain. Cross-builds cover Windows, macOS
-and Linux on amd64/arm64; compilation does not verify desktop launching. Native
-CI exercises persistence, concurrency, recovery, privacy and process boundaries
-on all three OSes. See [PILOT.md](PILOT.md) for actual results and remaining gates.
+`-race-check` is standalone: it cannot be combined with `-race` or `-cross`. It
+checks the native target, detector support and compiler, then links and executes
+the runner's instrumented test binary with no tests selected. A successful build
+with `[no test files]` is not accepted. It may populate Go's caches or download
+module dependencies, but runs no project tests and creates no Desky build outputs.
+`-race` performs the same prerequisite check before normal verification and the
+full uncached race suite. Failures stop verification with diagnostics.
+
+The runner enables `CGO_ENABLED=1` only for race-related child commands. Ordinary
+commands retain your environment, and cross-builds use `CGO_ENABLED=0`. Verification
+never installs packages or changes persistent Go settings or system PATH.
+
+Run native verification without cross-compilation overrides for `GOOS`/`GOARCH`.
+Those settings can prevent the outer `go run ./tools/verify` from starting before
+the runner can explain the mismatch. In PowerShell, remove session overrides with
+`Remove-Item Env:GOOS, Env:GOARCH -ErrorAction SilentlyContinue`; in a Unix shell,
+use `unset GOOS GOARCH`. If you intentionally saved overrides with `go env -w`,
+inspect them with `go env GOOS GOARCH` and remove those saved overrides explicitly
+with `go env -u GOOS GOARCH` before native verification.
+
+**Windows/amd64:** install [MSYS2](https://www.msys2.org/) using its default
+`C:\msys64` location. Follow its update instructions, including reopening its
+terminal if a core update requests it. In the **MSYS2 UCRT64** terminal, install
+the native GCC package:
+
+```sh
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc
+```
+
+Then select that compiler in the PowerShell session used for verification:
+
+```powershell
+$compilerDir = 'C:\msys64\ucrt64\bin' # Adjust for your installation
+$env:Path = "$compilerDir;$env:Path"
+$env:CC = '"' + (Join-Path $compilerDir 'gcc.exe') + '"'
+go run ./tools/verify -race-check
+go run ./tools/verify -race
+```
+
+The selected compiler must include mingw-w64 runtime 8 or later. The runner checks
+that its `--print-file-name libsynchronization.a` resolves an existing absolute
+library path, then tests actual linking and execution. Compiler paths containing
+spaces must be quoted in `CC`; compiler arguments and wrappers use Go's quoted-field
+syntax, without shell expansion. See [Go's requirements](https://go.dev/doc/articles/race_detector#Requirements).
+
+**Linux:** install a native C compiler. On Ubuntu/Debian, use
+`sudo apt-get update` followed by `sudo apt-get install build-essential`.
+The [Ubuntu bootstrap](tools/vm/README.md) already installs these prerequisites.
+Then run `-race-check` and `-race` from your normal shell.
+
+**macOS:** run `-race-check` first. If the Go probe reports a missing compiler or
+SDK, install Apple's Command Line Tools with `xcode-select --install`, complete
+the installer, and retry. Use `xcode-select -p` to inspect the selected developer
+directory. The runner relies on Go's build/execution probe on macOS rather than
+requiring a separate GCC installation.
+
+Go detector support is separate from Desky's desktop qualification. In particular,
+native Windows/arm64 is not currently supported by Go's race detector; a compiler
+installation does not enable it. The runner asks the installed Go toolchain about
+support rather than maintaining another platform list. Race detection only covers
+executed paths and can substantially increase runtime and memory use; see the
+[Go race guide](https://go.dev/doc/articles/race_detector).
+
+CI requires race verification on Windows, macOS and Linux. Windows provisions
+UCRT64 GCC and runs the same commands from native PowerShell. Linux additionally
+runs cross-builds and the Ubuntu workflow tests. Cross-builds cover Windows,
+macOS and Linux on amd64/arm64; compilation does not verify desktop launching.
+See [PILOT.md](PILOT.md) for actual results and remaining gates.
 
 For Ubuntu development, create your own VM and clone this repository inside it,
 then run `bash tools/vm/bootstrap.sh` to install prerequisites and build Desky.
