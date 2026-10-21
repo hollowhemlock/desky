@@ -182,8 +182,9 @@ unverified. Increment 4 remains incomplete.
 
 ## Race testing support plan
 
-Status: implemented and verified on Windows, including fresh compiler setup.
-Native CI results are recorded separately in PILOT.md when available.
+Status: implemented and verified locally on Windows, including fresh compiler
+setup, and in native Windows, macOS and Linux CI. PILOT.md records tested versions
+and the successful run; desktop qualification remains a separate gate.
 
 Extend the existing runner with standalone `-race-check` prerequisite inspection.
 Keep ordinary verification unchanged; `-race` checks readiness before normal

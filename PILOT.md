@@ -944,3 +944,25 @@ global Codex configuration needs to be rolled back.
   cross-builds and VM-script checks. Successful remote execution is pending at
   this entry; workflow configuration alone is not evidence of a pass. macOS GUI
   qualification and fresh Ubuntu prerequisite installation remain open.
+
+### 2026-10-21: native race CI evidence
+
+- [Verify run 39636738382](https://github.com/hollowhemlock/desky/actions/runs/39636738382)
+  passed all three native jobs at implementation commit `4c753fb`. Each job passed
+  the instrumented-binary readiness probe, ordinary verification, the uncached
+  full race suite and the native build with Go 1.27.0:
+
+  | Host | Architecture | Compiler evidence |
+  | --- | --- | --- |
+  | Ubuntu 26.04.1 LTS | amd64 | GCC 15.2.0, Ubuntu package `15.2.0-16ubuntu1` |
+  | Windows Server 2025, build 10.0.26100 | amd64 | Fresh action-provisioned MSYS2 UCRT64 GCC 16.2.0, revision 6 |
+  | macOS 26.6.2, build 25G83 | arm64 | Hosted toolchain passed the actual race build/execution probe; separate compiler version was not recorded |
+
+- Linux also passed all six cross-builds, the Ubuntu bootstrap shell syntax check
+  and all 13 Python workflow tests. Existing concurrency and subprocess tests
+  passed under race instrumentation on every CI OS without assertion changes.
+  Complete CI logs are retained locally at
+  `.cache/race-setup-20261021/ci-39636738382.log`.
+- These results complete the race-support plan's native CI gate. They do not
+  establish macOS desktop application behavior or fresh Ubuntu prerequisite
+  installation; increment 4 remains open for those checks.
