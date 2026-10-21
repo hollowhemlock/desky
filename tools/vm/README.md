@@ -100,8 +100,10 @@ GUI interaction are mocked in those tests. A real Ubuntu 26.04.1/amd64 GNOME
 Wayland run at `b57f04c` passed bootstrap twice with installed prerequisites and
 all eight desktop observations; exact versions and failed/incomplete attempts are
 recorded in [PILOT](../../PILOT.md#2026-10-20-native-ubuntu-setup-and-launcher-qualification).
-Installing missing packages on a fresh machine and the remaining platform/default
-profile observations stay unverified; increment 4 remains open.
+A separate [default editor desktop check](../../PILOT.md#2026-10-21-default-editor-desktop-qualification)
+with no editor override passed at `534ca89`. Installing missing packages on a fresh
+machine and the remaining Windows/macOS observations stay unverified; increment 4
+remains open.
 
 ```sh
 bash -n tools/vm/bootstrap.sh

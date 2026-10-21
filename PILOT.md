@@ -454,7 +454,7 @@ Actual desktop matrix and outstanding qualification:
 |---|---|---|
 | Windows 11 build 26200 / amd64 | Increment 2 user-confirmed smoke; increment 4 follow-up above adds actual consent, four-resource dispatch, native failure reporting, and editor/Notepad window survival and document inspection | Post-change visible terminal CWD, browser contents and fully observed repeat-open; real noninteractive-station fixture was denied on this host |
 | macOS / architecture not yet exercised on a desktop | No desktop host available in this task | Exact OS/architecture/app versions; editor, Terminal directory with spaces, URL and named app; consent completion, repeat-open, return to CLI, failure cases and app survival |
-| Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Bootstrap twice, native/race checks and all eight user-observed desktop checks passed at `b57f04c`; VS Code 1.142.0, GNOME Terminal 3.58.0, Firefox 158.0, Text Editor 50.1 | Default editor GUI behavior still needs observation: the passed recipe used explicit `code --new-window`; other Linux distributions/architectures remain unverified |
+| Ubuntu 26.04.1 LTS / amd64, GNOME Wayland | Bootstrap twice and all eight desktop observations passed at `b57f04c`; default editor with no override passed at `534ca89`; native/race checks passed; VS Code 1.142.0, GNOME Terminal 3.58.0, Firefox 158.0, Text Editor 50.1 | Installing missing prerequisites on a fresh machine remains unverified; other Linux distributions/architectures remain unverified |
 
 On each newly available desktop, use isolated device/personal storage and a
 disposable checkout with spaces and shell metacharacters. Record actual visible
@@ -790,3 +790,38 @@ global Codex configuration needs to be rolled back.
   prerequisites on a fresh Ubuntu machine remains unverified; successful reuse of
   installed packages is not evidence of that installation path. Public release
   and support beyond the exact tested matrix remain separate decisions.
+
+### 2026-10-21: default editor desktop qualification
+
+- Tested commit `534ca8965966ee33c48d7ac66769497a7735ac88` on the same Ubuntu
+  26.04.1 LTS / amd64 GNOME Wayland desktop. VS Code was 1.142.0
+  (`6d62b1d5dace93a33b3a6d3eca1317bd5e15bcb1`, x64), Go 1.27.0.
+- Used a new disposable editor-only workspace named
+  `-Desky default editor 雪 & spaces; punctuation` and isolated XDG configuration,
+  data and state directories. The isolated `desky/config.toml` did not exist
+  before or after the test: no editor executable or arguments were overridden.
+  Desktop-session checks and the real first-entry consent prompt stayed enabled.
+- `go run ./tools/verify -race` passed, reusing applicable Go test-cache results
+  and rebuilding the native binary. Source integrity passed before and after the
+  desktop check. The built binary SHA-256 was
+  `4501f2eacb025ec59250b10cae700acc12c410f4467fefa7dca0e137f67c1f9f`.
+- `bin/desk open <fixture> --dry-run --json` exited 0 and resolved
+  `/snap/bin/code --reuse-window <fixture>`, retaining the Snap invocation name.
+  Two real `bin/desk open <fixture>` calls then exited 0. The first required
+  affirmative consent; the repeat reused that approval. Parent CWD was unchanged.
+- The user explicitly passed all six observations: consent completion, the exact
+  fixture visible in VS Code, prompt return after first approval, editor survival,
+  repeat opening without new consent, and prompt return with the editor still
+  available after repeat entry. Repeat execution took 1.434 seconds. The first
+  recorded duration, 189.535 seconds, includes the user's consent wait and is not
+  a launch-latency measurement.
+- Run `263ac186e79148258acfc3d6d86b2d95` has `result: passed`. Its report and native
+  verification log are under `.cache/vm-runs/263ac186e79148258acfc3d6d86b2d95/` in
+  the task worktree; `fixture/evidence/` retains the dry-run plan, targeted smoke
+  harness, terminal transcript and exit status. Earlier failed or unverified
+  evidence remains intact; this closes the previously outstanding Ubuntu
+  default-editor desktop check for the tested host and application version.
+- No application code changed in this follow-up. Increment 4 remains **open**:
+  installing missing prerequisites on a fresh Ubuntu machine and the outstanding
+  Windows/macOS observations still lack evidence. Other environments and public
+  distribution/support remain outside the tested matrix.
